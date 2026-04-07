@@ -7,13 +7,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class GameRepository(context: Context) {
-    private val prefs: SharedPreferences = context.getSharedPreferences("fishing_prefs", Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = context.getSharedPreferences("fishing_prefs_v2", Context.MODE_PRIVATE)
 
     suspend fun saveProgress(state: GameState) = withContext(Dispatchers.IO) {
         prefs.edit().apply {
             putLong("score", state.score)
             putInt("totalFish", state.totalFishCaught)
-            // Guardar niveles de upgrades
+            // Guardar todos los niveles de upgrades dinámicamente
             state.upgLevels.forEach { (key, level) ->
                 putInt("upg_$key", level)
             }
@@ -24,11 +24,17 @@ class GameRepository(context: Context) {
     suspend fun loadProgress(): GameState = withContext(Dispatchers.IO) {
         val score = prefs.getLong("score", 0L)
         val totalFish = prefs.getInt("totalFish", 0)
-        val levels = mapOf(
-            "depth" to prefs.getInt("upg_depth", 0),
-            "weight" to prefs.getInt("upg_weight", 0),
-            "pts" to prefs.getInt("upg_pts", 0)
+        
+        // Cargar upgrades conocidos
+        val upgradeKeys = listOf("depth", "weight", "speed", "luck")
+        val levels = upgradeKeys.associateWith { key ->
+            prefs.getInt("upg_$key", 0)
+        }
+        
+        GameState(
+            score = score, 
+            totalFishCaught = totalFish, 
+            upgLevels = levels
         )
-        GameState(score = score, totalFishCaught = totalFish, upgLevels = levels)
     }
 }

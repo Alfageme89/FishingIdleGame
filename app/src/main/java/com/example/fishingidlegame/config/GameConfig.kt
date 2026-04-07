@@ -3,41 +3,44 @@ package com.example.fishingidlegame.config
 import androidx.compose.ui.graphics.Color
 
 object GameConfig {
-    const val CAST_SPEED = 15f
-    const val REEL_SPEED_BASE = 4.5f
-    const val REEL_SPEED_FULL = 16.0f
-    const val NUM_FISH = 20
-    const val M2PX_BASE = 12f // px por metro
+    const val CAST_SPEED = 18f // Aumentado para mayor fluidez
+    const val REEL_SPEED_BASE = 5.0f
+    const val REEL_SPEED_FULL = 20.0f
+    const val NUM_FISH = 30 // Más vida en el mar
+    const val M2PX_BASE = 15f // Escala mejorada
 
     val fishTypes = listOf(
-        FishTypeConfig("Trucha",      Color(0xFFE07B54), 10,   28f, 16f, 1.5f),
-        FishTypeConfig("Carpa",       Color(0xFF7AB648), 15,   34f, 18f, 3.0f),
-        FishTypeConfig("Lucio",       Color(0xFF5B8DD9), 30,   42f, 14f, 5.0f),
-        FishTypeConfig("Salmón",      Color(0xFFF4845F), 50,   38f, 17f, 4.0f),
-        FishTypeConfig("Piraña",      Color(0xFFE63946), 40,   26f, 20f, 2.0f),
-        FishTypeConfig("Rape",        Color(0xFF9B72CF), 100,  30f, 28f, 3.5f),
-        FishTypeConfig("Pez Luna",    Color(0xFFA0C4FF), 80,   44f, 44f, 12.0f),
-        FishTypeConfig("Tiburón",     Color(0xFF6B8FA8), 200,  56f, 22f, 18.0f),
-        FishTypeConfig("Pez Espada",  Color(0xFF4ECDC4), 350,  60f, 12f, 8.0f),
-        FishTypeConfig("Calamar Gig.",Color(0xFFC77DFF), 500,  48f, 36f, 15.0f),
-        FishTypeConfig("Dunkleosteus",Color(0xFF8D6E63), 1000, 64f, 34f, 19.0f)
+        FishTypeConfig("Sardina",     Color(0xFFBDC3C7), 15,   20f, 10f, 0.5f,  "🐟"),
+        FishTypeConfig("Trucha",      Color(0xFFE07B54), 30,   32f, 18f, 1.5f,  "🐠"),
+        FishTypeConfig("Carpa",       Color(0xFF7AB648), 60,   40f, 22f, 3.5f,  "🐡"),
+        FishTypeConfig("Salmón",      Color(0xFFF4845F), 120,  45f, 20f, 5.0f,  "🐟"),
+        FishTypeConfig("Lucio",       Color(0xFF5B8DD9), 250,  55f, 18f, 8.0f,  "🦈"),
+        FishTypeConfig("Pez Espada",  Color(0xFF4ECDC4), 600,  75f, 15f, 12.0f, "🗡️"),
+        FishTypeConfig("Tiburón",     Color(0xFF636E72), 1500, 95f, 35f, 25.0f, "🦈"),
+        FishTypeConfig("Kraken",      Color(0xFFD63031), 5000, 120f, 80f, 60.0f,"🐙"),
+        FishTypeConfig("Leviatán",    Color(0xFF2D3436), 15000, 180f, 90f, 150.0f, "🐳")
     )
 
     val upgrades = mapOf(
         "depth" to UpgradeConfig(
-            id = "depth", name = "Profundidad", icon = "🌊", unit = "m",
-            levels = listOf(50, 120, 220, 380, 600, 900, 1350, 2000),
-            values = listOf(20f, 35f, 55f, 80f, 115f, 160f, 220f, 300f, 400f)
+            id = "depth", name = "Carrete Pro", icon = "🧵", unit = "m",
+            levels = listOf(100, 300, 800, 2000, 5000, 12000, 30000, 75000),
+            values = listOf(30f, 60f, 120f, 250f, 500f, 1000f, 2500f, 6000f, 15000f)
         ),
         "weight" to UpgradeConfig(
-            id = "weight", name = "Límite Peso", icon = "⚖️", unit = "kg",
-            levels = listOf(60, 150, 280, 460, 750, 1100, 1600, 2400),
-            values = listOf(20f, 30f, 42f, 58f, 78f, 100f, 130f, 165f, 210f)
+            id = "weight", name = "Red Reforzada", icon = "🕸️", unit = "kg",
+            levels = listOf(150, 450, 1200, 3500, 8000, 20000, 50000, 150000),
+            values = listOf(10f, 25f, 60f, 150f, 400f, 1000f, 3000f, 10000f, 50000f)
         ),
-        "pts" to UpgradeConfig(
-            id = "pts", name = "Puntuación", icon = "⭐", unit = "x",
-            levels = listOf(80, 180, 320, 520, 850, 1300, 1900, 2800),
-            values = listOf(1.0f, 1.3f, 1.7f, 2.2f, 2.8f, 3.5f, 4.5f, 5.8f, 7.5f)
+        "speed" to UpgradeConfig( // Nueva mejora: Velocidad
+            id = "speed", name = "Motor", icon = "⚙️", unit = "x",
+            levels = listOf(200, 600, 1800, 5000, 15000, 45000),
+            values = listOf(1.0f, 1.2f, 1.5f, 2.0f, 2.8f, 4.0f, 6.0f)
+        ),
+        "luck" to UpgradeConfig( // Nueva mejora: Suerte (peces raros)
+            id = "luck", name = "Cebo Dorado", icon = "✨", unit = "%",
+            levels = listOf(500, 2000, 10000, 50000),
+            values = listOf(0f, 5f, 15f, 35f, 75f)
         )
     )
 }
@@ -48,7 +51,8 @@ data class FishTypeConfig(
     val pts: Int,
     val w: Float,
     val h: Float,
-    val kg: Float
+    val kg: Float,
+    val icon: String // Añadido para UI
 )
 
 data class UpgradeConfig(

@@ -8,7 +8,8 @@ data class FishType(
     val basePoints: Int,
     val width: Float,
     val height: Float,
-    val baseKg: Float
+    val baseKg: Float,
+    val icon: String
 )
 
 data class Fish(
@@ -28,12 +29,17 @@ data class GameState(
     val score: Long = 0,
     val totalFishCaught: Int = 0,
     val currentKg: Float = 0f,
-    val upgLevels: Map<String, Int> = mapOf("depth" to 0, "weight" to 0, "pts" to 0),
+    val upgLevels: Map<String, Int> = mapOf(
+        "depth" to 0, 
+        "weight" to 0, 
+        "speed" to 0, 
+        "luck" to 0
+    ),
     val gamePhase: String = "MENU", // MENU, FISHING, REELING
     val hookX: Float = 0f,
     val hookY: Float = 0f,
     val camY: Float = 0f,
     val camYTarget: Float = 0f,
     val weightFull: Boolean = false,
-    val toastMessage: String? = null // Nuevo: Para mensajes temporales
+    val toastMessage: String? = null
 )
