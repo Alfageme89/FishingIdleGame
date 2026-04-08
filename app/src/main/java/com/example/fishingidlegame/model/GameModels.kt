@@ -2,14 +2,22 @@ package com.example.fishingidlegame.model
 
 import androidx.compose.ui.graphics.Color
 
+data class Biome(
+    val name: String,
+    val skyColor: Color,
+    val waterColorTop: Color,
+    val waterColorBottom: Color,
+    val minDepthRequired: Float,
+    val fishTypeNames: List<String>
+)
+
 data class FishType(
     val name: String,
     val color: Color,
     val basePoints: Int,
     val width: Float,
     val height: Float,
-    val baseKg: Float,
-    val icon: String
+    val baseKg: Float
 )
 
 data class Fish(
@@ -29,17 +37,18 @@ data class GameState(
     val score: Long = 0,
     val totalFishCaught: Int = 0,
     val currentKg: Float = 0f,
-    val upgLevels: Map<String, Int> = mapOf(
-        "depth" to 0, 
-        "weight" to 0, 
-        "speed" to 0, 
-        "luck" to 0
-    ),
-    val gamePhase: String = "MENU", // MENU, FISHING, REELING
-    val hookX: Float = 0f,
+    val upgLevels: Map<String, Int> = mapOf("depth" to 0, "weight" to 0, "pts" to 0, "crew" to 0),
+    val gamePhase: String = "MENU",
+    val hookX: Float = 240f,
     val hookY: Float = 0f,
     val camY: Float = 0f,
     val camYTarget: Float = 0f,
     val weightFull: Boolean = false,
-    val toastMessage: String? = null
+    val toastMessage: String? = null,
+    
+    val currentBiomeIndex: Int = 0,
+    val prestigeMultiplier: Float = 1.0f,
+    val totalLifetimeScore: Long = 0,
+    val lastTimestamp: Long = System.currentTimeMillis(),
+    val offlineEarnings: Long = 0 // Para mostrar el resumen al volver
 )
