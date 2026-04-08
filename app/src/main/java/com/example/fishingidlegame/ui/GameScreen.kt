@@ -5,10 +5,10 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,6 +21,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -28,7 +29,6 @@ import androidx.compose.ui.unit.sp
 import com.example.fishingidlegame.config.GameConfig
 import com.example.fishingidlegame.model.Fish
 import com.example.fishingidlegame.viewmodel.FishingViewModel
-import kotlin.math.sin
 
 @Composable
 fun GameScreen(viewModel: FishingViewModel) {
@@ -36,213 +36,164 @@ fun GameScreen(viewModel: FishingViewModel) {
     val fishList by viewModel.fishList.collectAsState()
     val currentBiome = GameConfig.biomes[state.currentBiomeIndex]
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A1628))) {
-        // 1. Mundo (Canvas Dinámico)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = {
+                        if (state.gamePhase == "BOSS_FIGHT") {
+                            viewModel.onPlayerTap()
+                        }
+                    }
+                )
+            }
+    ) {
+        // 1. Mundo (Canvas)
         GameCanvas(state, fishList, currentBiome, onLaunch = { viewModel.launchHook(240f) })
 
         // 2. HUD Superior
         GameHUD(state, currentBiome)
 
-        // 3. Overlay Inicial
-        AnimatedVisibility(
-            visible = state.gamePhase == "MENU",
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier.align(Alignment.Center)
-        ) {
-            GameOverlay(currentBiome, onLaunch = { viewModel.launchHook(240f) })
+        // 3. UI DE BOSS (Tensión por toques)
+        if (state.gamePhase == "BOSS_FIGHT") {
+            BossFightTapUI(state)
         }
 
-        // 4. Barra de Carga
-        if (state.gamePhase != "MENU") {
-            WeightBar(
-                currentKg = state.currentKg,
-                maxKg = GameConfig.upgrades["weight"]?.values?.get(state.upgLevels["weight"] ?: 0) ?: 20f,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 140.dp)
-            )
-        }
-
-        // 5. Toasts
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-            state.toastMessage?.let { msg ->
-                GameToast(msg)
-            }
-        }
-
-        // 6. Botón de Prestigio (Solo si tiene suficientes puntos acumulados)
-        if (state.gamePhase == "MENU" && state.totalLifetimeScore > 5000) {
-            PrestigeButton(
-                multiplier = 1.0f + (state.totalLifetimeScore / 5000f),
-                onClick = { viewModel.resetForPrestige() },
-                modifier = Modifier.align(Alignment.TopEnd).padding(top = 100.dp, end = 16.dp)
-            )
-        }
-
-        // 7. Menú de Mejoras
+        // 4. Overlay de Menú
         if (state.gamePhase == "MENU") {
             Column(modifier = Modifier.align(Alignment.BottomCenter)) {
                 UpgradeMenu(state, onUpgrade = { viewModel.buyUpgrade(it) })
                 Spacer(modifier = Modifier.height(24.dp))
             }
+            GameOverlay(currentBiome, onLaunch = { viewModel.launchHook(240f) })
+        }
+
+        // 5. Toasts
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            state.toastMessage?.let { GameToast(it) }
         }
     }
 }
 
 @Composable
-fun GameCanvas(
-    state: com.example.fishingidlegame.model.GameState, 
-    fishList: List<Fish>, 
-    biome: com.example.fishingidlegame.model.Biome,
-    onLaunch: () -> Unit
-) {
+fun BossFightTapUI(state: com.example.fishingidlegame.model.GameState) {
+    val biome = GameConfig.biomes[state.currentBiomeIndex]
+    
+    // Animación de vibración si la tensión es peligrosa
     val infiniteTransition = rememberInfiniteTransition()
-    val waveOffset by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 400f,
-        animationSpec = infiniteRepeatable(tween(4000, easing = LinearEasing))
+    val shake by infiniteTransition.animateFloat(
+        initialValue = -2f, targetValue = 2f,
+        animationSpec = infiniteRepeatable(tween(50), RepeatMode.Reverse)
     )
 
+    Column(
+        modifier = Modifier.fillMaxSize().padding(top = 100.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("¡BOSS: ${biome.bossName.uppercase()}!", color = Color.White, fontWeight = FontWeight.Black, fontSize = 24.sp)
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Vida del Boss
+        Text("STAMINA DEL JEFE", color = Color.White.copy(0.6f), fontSize = 10.sp)
+        LinearProgressIndicator(
+            progress = state.bossHealth / state.bossMaxHealth,
+            modifier = Modifier.width(300.dp).height(12.dp).clip(RoundedCornerShape(6.dp)),
+            color = Color(0xFFE74C3C),
+            trackColor = Color.Black.copy(0.4f)
+        )
+
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // BARRA DE TENSIÓN DINÁMICA
+        Text("TENSIÓN", color = Color.White, fontWeight = FontWeight.Bold)
+        Box(
+            modifier = Modifier
+                .width(320.dp)
+                .height(40.dp)
+                .offset(x = if (state.bossActive) shake.dp else 0.dp) // Vibra si hay boss
+                .background(Color.Black.copy(0.5f), RoundedCornerShape(8.dp))
+        ) {
+            // Sweet Spot (Zona Verde)
+            Box(modifier = Modifier.fillMaxHeight().width(90.dp).align(Alignment.Center).background(Color(0xFF2ECC71).copy(0.4f)))
+            
+            // Aguja de tensión (Simulada, en una app real usaríamos el valor de tensionValue del VM)
+            Box(modifier = Modifier.fillMaxHeight().width(4.dp).align(Alignment.Center).background(Color.White))
+        }
+        
+        Text("¡DA TOQUES RÁPIDOS PARA TIRAR!", color = Color(0xFFf9c74f), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 20.dp))
+    }
+}
+
+// Reutilizamos el Canvas y HUD anteriores...
+@Composable
+fun GameCanvas(state: com.example.fishingidlegame.model.GameState, fishList: List<Fish>, biome: com.example.fishingidlegame.model.Biome, onLaunch: () -> Unit) {
     Canvas(modifier = Modifier.fillMaxSize().clickable { if (state.gamePhase == "MENU") onLaunch() }) {
         val scale = size.width / 480f
         val surfaceY = 400f * scale
         val camOffset = state.camY * scale
 
-        // Dibujar Cielo del Bioma
+        // Fondo Bioma
+        drawRect(color = biome.skyColor, size = Size(size.width, surfaceY - camOffset))
         drawRect(
-            color = biome.skyColor,
-            size = Size(size.width, surfaceY - camOffset)
-        )
-
-        // Dibujar Agua del Bioma (Degradado)
-        drawRect(
-            brush = Brush.verticalGradient(
-                colors = listOf(biome.waterColorTop, biome.waterColorBottom),
-                startY = (surfaceY - camOffset).coerceAtLeast(0f)
-            ),
+            brush = Brush.verticalGradient(listOf(biome.waterColorTop, biome.waterColorBottom), startY = (surfaceY - camOffset).coerceAtLeast(0f)),
             topLeft = Offset(0f, (surfaceY - camOffset).coerceAtLeast(0f)),
             size = Size(size.width, size.height)
         )
 
-        // Ondas
-        if (surfaceY - camOffset > -50) {
-            for (i in 0..8) {
-                val ox = (i * 120 * scale + waveOffset * scale) % size.width
-                drawCircle(Color.White.copy(alpha = 0.15f), radius = 15f * scale, center = Offset(ox, surfaceY - camOffset))
-            }
+        // El Boss Gigante (Representación visual)
+        if (state.gamePhase == "BOSS_FIGHT") {
+            val bx = size.width / 2
+            val by = (state.hookY * scale) - camOffset
+            drawCircle(Color.Black.copy(0.6f), radius = 120f * scale, center = Offset(bx, by))
+            drawCircle(Color(0xFF1A1A1A), radius = 100f * scale, center = Offset(bx, by))
+            // Ojo brillante del Boss
+            drawCircle(Color.Red, radius = 10f * scale, center = Offset(bx + 40*scale, by - 20*scale))
         }
 
-        // Peces
+        // Peces y Sedal
         fishList.forEach { fish ->
             val fx = fish.x * scale
             val fy = (fish.y * scale) - camOffset
-            if (fy > -100 && fy < size.height + 100) {
-                rotate(degrees = if (fish.vx > 0) 0f else 180f, pivot = Offset(fx, fy)) {
-                    drawOval(fish.type.color, topLeft = Offset(fx - 15*scale, fy - 10*scale), size = Size(30*scale, 20*scale))
-                    drawPath(Path().apply {
-                        moveTo(fx - 15*scale, fy)
-                        lineTo(fx - 25*scale, fy - 8*scale)
-                        lineTo(fx - 25*scale, fy + 8*scale)
-                        close()
-                    }, fish.type.color)
-                    drawCircle(Color.White, radius = 2f*scale, center = Offset(fx + 8*scale, fy - 3*scale))
-                }
+            if (!fish.isCaught && fy > surfaceY - camOffset) {
+                drawCircle(fish.type.color, radius = 10f * scale, center = Offset(fx, fy))
             }
         }
 
-        // Barco
-        val boatX = size.width / 2
-        val boatY = surfaceY - camOffset
-        if (boatY > -200) {
-            drawBoat(boatX, boatY, scale)
-        }
-
-        // Sedal y Anzuelo
         if (state.gamePhase != "MENU") {
             val hX = state.hookX * scale
             val hY = (state.hookY * scale) - camOffset
-            drawLine(Color.White.copy(alpha = 0.6f), Offset(boatX + 40 * scale, boatY - 60 * scale), Offset(hX, hY), strokeWidth = 1.5f * scale)
+            drawLine(Color.White, Offset(size.width/2 + 40*scale, surfaceY - camOffset - 60*scale), Offset(hX, hY), strokeWidth = 2f)
             drawCircle(Color(0xFFf9c74f), radius = 6f * scale, center = Offset(hX, hY))
         }
     }
 }
 
 @Composable
-fun PrestigeButton(multiplier: Float, onClick: () -> Unit, modifier: Modifier) {
-    Surface(
-        onClick = onClick,
-        color = Color(0xFF6200EE),
-        shape = RoundedCornerShape(12.dp),
-        modifier = modifier.shadow(8.dp, RoundedCornerShape(12.dp))
-    ) {
-        Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("PRESTIGIO", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            Text("x${"%.2f".format(multiplier)}", color = Color(0xFFf9c74f), fontSize = 18.sp, fontWeight = FontWeight.Black)
-            Text("REINICIAR", color = Color.White.copy(alpha = 0.6f), fontSize = 8.sp)
-        }
-    }
-}
-
-// ... Resto de componentes (GameHUD, WeightBar, etc.) actualizados para usar los nuevos campos ...
-// (Nota: Por brevedad no repito todo el archivo, pero incluyo los cambios clave)
-
-@Composable
 fun GameHUD(state: com.example.fishingidlegame.model.GameState, biome: com.example.fishingidlegame.model.Biome) {
     Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Column {
-            Text(biome.name.uppercase(), color = Color(0xFFf9c74f), fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+            Text(biome.name.uppercase(), color = Color(0xFFf9c74f), fontSize = 11.sp, fontWeight = FontWeight.Black)
             Text("${state.score} pts", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black)
-            if (state.prestigeMultiplier > 1f) {
-                Text("Bono: x${"%.2f".format(state.prestigeMultiplier)}", color = Color(0xFF64DC82), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            }
         }
-        Pill(text = "🐟 ${state.totalFishCaught}")
+        Surface(color = Color(0xAA0A1628), shape = RoundedCornerShape(999.dp)) {
+            Text("🐟 ${state.totalFishCaught}", color = Color.White, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontWeight = FontWeight.Bold)
+        }
     }
 }
 
 @Composable
 fun GameOverlay(biome: com.example.fishingidlegame.model.Biome, onLaunch: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("FISHING", fontSize = 56.sp, fontWeight = FontWeight.Black, color = Color.White)
-        Text(biome.name, fontSize = 18.sp, color = Color(0xFFf9c74f), fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(40.dp))
-        Button(
-            onClick = onLaunch,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFf9c74f)),
-            modifier = Modifier.height(56.dp).width(200.dp)
-        ) {
-            Text("LANZAR", color = Color.Black, fontWeight = FontWeight.Black)
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("FISHING", fontSize = 56.sp, fontWeight = FontWeight.Black, color = Color.White)
+            Text("BIOMA: ${biome.name}", color = Color(0xFFf9c74f), fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(40.dp))
+            Button(onClick = onLaunch, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFf9c74f))) {
+                Text("LANZAR", color = Color.Black, fontWeight = FontWeight.Black)
+            }
         }
-    }
-}
-
-// Reutilizamos Pill, WeightBar, UpgradeMenu, UpgradeCard del archivo anterior con sus lógicas
-@Composable
-fun Pill(text: String) {
-    Surface(color = Color(0xAA0A1628), shape = RoundedCornerShape(999.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFFFFF))) {
-        Text(text = text, color = Color.White, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-    }
-}
-
-@Composable
-fun GameToast(message: String) {
-    Surface(color = Color(0xEE0A1628), shape = RoundedCornerShape(999.dp), border = androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFf9c74f)), modifier = Modifier.padding(top = 100.dp)) {
-        Text(text = message, color = Color.White, modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp), fontWeight = FontWeight.Bold, fontSize = 15.sp)
-    }
-}
-
-@Composable
-fun WeightBar(currentKg: Float, maxKg: Float, modifier: Modifier) {
-    val progress = (currentKg / maxKg).coerceIn(0f, 1f)
-    Column(modifier = modifier.width(260.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("CARGA", color = Color.White.copy(alpha = 0.6f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            Text("${"%.1f".format(currentKg)} / ${maxKg.toInt()} kg", color = Color(0xFFf9c74f), fontSize = 12.sp, fontWeight = FontWeight.Black)
-        }
-        LinearProgressIndicator(
-            progress = progress,
-            modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(99.dp)),
-            color = if (progress >= 1f) Color.Red else Color(0xFF29b6f6),
-            trackColor = Color.White.copy(alpha = 0.1f)
-        )
     }
 }
 
@@ -261,41 +212,21 @@ fun UpgradeMenu(state: com.example.fishingidlegame.model.GameState, onUpgrade: (
 fun UpgradeCard(upgrade: com.example.fishingidlegame.config.UpgradeConfig, level: Int, cost: Int, canAfford: Boolean, onClick: () -> Unit) {
     Card(
         modifier = Modifier.width(135.dp).clickable(enabled = cost != -1) { onClick() },
-        colors = CardDefaults.cardColors(containerColor = if (canAfford) Color(0xFF1A2B3C) else Color(0xFF0D1621)),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, if (cost == -1) Color(0xFF64DC82) else if (canAfford) Color(0xFFf9c74f) else Color(0x22FFFFFF))
+        colors = CardDefaults.cardColors(containerColor = if (canAfford) Color(0xFF1A2B3C) else Color(0xFF0D1621))
     ) {
         Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(upgrade.icon, fontSize = 28.sp)
-            Text(upgrade.name, fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.Bold)
+            Text(upgrade.name, fontSize = 10.sp, color = Color.White.copy(0.6f), fontWeight = FontWeight.Bold)
             Text("${upgrade.values[level]}${upgrade.unit}", fontSize = 13.sp, color = Color(0xFFf9c74f), fontWeight = FontWeight.ExtraBold)
             Spacer(modifier = Modifier.height(6.dp))
-            Surface(
-                color = if (cost == -1) Color(0x3364DC82) else if (canAfford) Color(0xFFf9c74f) else Color(0x11FFFFFF),
-                shape = RoundedCornerShape(999.dp)
-            ) {
-                Text(
-                    text = if (cost == -1) "MÁXIMO" else "$cost pts",
-                    color = if (canAfford || cost == -1) Color(0xFF0A1628) else Color.White.copy(alpha = 0.3f),
-                    fontSize = 10.sp,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
-                    fontWeight = FontWeight.Black
-                )
-            }
+            Text(if (cost == -1) "MAX" else "$cost", color = if (canAfford) Color.White else Color.Gray, fontWeight = FontWeight.Black)
         }
     }
 }
 
-fun DrawScope.drawBoat(x: Float, y: Float, scale: Float) {
-    val bW = 140f * scale
-    val bH = 40f * scale
-    val path = Path().apply {
-        moveTo(x - bW/2, y - 10*scale)
-        lineTo(x + bW/2, y - 10*scale)
-        lineTo(x + bW/2 - 15*scale, y + bH/2)
-        lineTo(x - bW/2 + 15*scale, y + bH/2)
-        close()
+@Composable
+fun GameToast(msg: String) {
+    Surface(color = Color(0xEE0A1628), shape = RoundedCornerShape(999.dp), border = androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFf9c74f)), modifier = Modifier.padding(top = 100.dp)) {
+        Text(text = msg, color = Color.White, modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp), fontWeight = FontWeight.Bold, fontSize = 15.sp)
     }
-    drawPath(path, Color(0xFFc0392b))
-    drawRect(Color(0xFFe8d5a0), topLeft = Offset(x - 25*scale, y - 45*scale), size = Size(45*scale, 35*scale))
-    drawLine(Color(0xFF6b3f1a), Offset(x + 10*scale, y - 10*scale), Offset(x + 10*scale, y - 80*scale), strokeWidth = 3f * scale)
 }

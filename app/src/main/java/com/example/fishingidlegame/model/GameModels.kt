@@ -8,7 +8,16 @@ data class Biome(
     val waterColorTop: Color,
     val waterColorBottom: Color,
     val minDepthRequired: Float,
-    val fishTypeNames: List<String>
+    val fishTypeNames: List<String>,
+    val bossName: String // El nombre del Boss de este bioma
+)
+
+data class Boss(
+    val name: String,
+    val color: Color,
+    val maxHealth: Float,
+    val size: Float,
+    val reward: Long
 )
 
 data class FishType(
@@ -38,7 +47,7 @@ data class GameState(
     val totalFishCaught: Int = 0,
     val currentKg: Float = 0f,
     val upgLevels: Map<String, Int> = mapOf("depth" to 0, "weight" to 0, "pts" to 0, "crew" to 0),
-    val gamePhase: String = "MENU",
+    val gamePhase: String = "MENU", // MENU, FISHING, REELING, BOSS_FIGHT
     val hookX: Float = 240f,
     val hookY: Float = 0f,
     val camY: Float = 0f,
@@ -50,5 +59,10 @@ data class GameState(
     val prestigeMultiplier: Float = 1.0f,
     val totalLifetimeScore: Long = 0,
     val lastTimestamp: Long = System.currentTimeMillis(),
-    val offlineEarnings: Long = 0 // Para mostrar el resumen al volver
+    
+    // ── NUEVO: ESTADO DE BOSS ──
+    val bossActive: Boolean = false,
+    val bossHealth: Float = 0f,
+    val bossMaxHealth: Float = 100f,
+    val nextBiomeUnlocked: Boolean = false
 )

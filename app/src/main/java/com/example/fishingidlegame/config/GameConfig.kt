@@ -3,6 +3,7 @@ package com.example.fishingidlegame.config
 import androidx.compose.ui.graphics.Color
 import com.example.fishingidlegame.model.Biome
 import com.example.fishingidlegame.model.FishType
+import com.example.fishingidlegame.model.Boss
 
 object GameConfig {
     const val CAST_SPEED = 15f
@@ -11,14 +12,25 @@ object GameConfig {
     const val NUM_FISH = 25
     const val M2PX_BASE = 12f
 
+    // ── BIOMAS CON BOSSES ──
     val biomes = listOf(
-        Biome("Lago Sereno", Color(0xFF1e5fa8), Color(0xFF1898a8), Color(0xFF061220), 0f, listOf("Trucha", "Carpa", "Lucio")),
-        Biome("Arrecife Coral", Color(0xFF5ba8d8), Color(0xFF4ecdc4), Color(0xFF123456), 40f, listOf("Pez Payaso", "Salmón", "Piraña", "Pez Globo")),
-        Biome("Océano Profundo", Color(0xFF0D1B2A), Color(0xFF1B263B), Color(0xFF010406), 110f, listOf("Tiburón", "Pez Espada", "Rape", "Manta Raya")),
-        Biome("Abismo Abisal", Color(0xFF000000), Color(0xFF010406), Color(0xFF000000), 280f, listOf("Calamar Gig.", "Dunkleosteus", "Anguila Eléctrica")),
-        Biome("Zona Volcánica", Color(0xFF2B1010), Color(0xFF440000), Color(0xFF1A0000), 500f, listOf("Pez Magma", "Dragón Marino", "Kraken"))
+        Biome("Lago Sereno", Color(0xFF1e5fa8), Color(0xFF1898a8), Color(0xFF061220), 0f, listOf("Trucha", "Carpa", "Lucio"), "Siluro Gigante"),
+        Biome("Arrecife Coral", Color(0xFF5ba8d8), Color(0xFF4ecdc4), Color(0xFF123456), 40f, listOf("Pez Payaso", "Salmón", "Piraña", "Pez Globo"), "Gran Tiburón Blanco"),
+        Biome("Océano Profundo", Color(0xFF0D1B2A), Color(0xFF1B263B), Color(0xFF010406), 110f, listOf("Tiburón", "Pez Espada", "Rape", "Manta Raya"), "Megalodón"),
+        Biome("Abismo Abisal", Color(0xFF000000), Color(0xFF010406), Color(0xFF000000), 280f, listOf("Calamar Gig.", "Dunkleosteus", "Anguila Eléctrica"), "Leviathán"),
+        Biome("Zona Volcánica", Color(0xFF2B1010), Color(0xFF440000), Color(0xFF1A0000), 500f, listOf("Pez Magma", "Dragón Marino", "Kraken"), "EL KRAKEN")
     )
 
+    // ── DATOS DE LOS BOSSES ──
+    val bosses = mapOf(
+        "Siluro Gigante" to Boss("Siluro Gigante", Color(0xFF4A4A4A), 100f, 100f, 1000L),
+        "Gran Tiburón Blanco" to Boss("Gran Tiburón Blanco", Color(0xFF6B8FA8), 250f, 120f, 5000L),
+        "Megalodón" to Boss("Megalodón", Color(0xFF2F4F4F), 600f, 180f, 25000L),
+        "Leviathán" to Boss("Leviathán", Color(0xFF4B0082), 1500f, 250f, 100000L),
+        "EL KRAKEN" to Boss("EL KRAKEN", Color(0xFF800000), 5000f, 400f, 1000000L)
+    )
+
+    // (Reutilizamos fishTypes y upgrades del archivo anterior...)
     val fishTypes = mapOf(
         "Trucha" to FishType("Trucha", Color(0xFFE07B54), 10, 28f, 16f, 1.5f),
         "Carpa" to FishType("Carpa", Color(0xFF7AB648), 15, 34f, 18f, 3.0f),
@@ -43,15 +55,12 @@ object GameConfig {
         "depth" to UpgradeConfig("depth", "Profundidad", "🌊", "m", 
             listOf(50, 150, 400, 1000, 2500, 6000, 15000, 40000, 100000),
             listOf(20f, 45f, 80f, 130f, 200f, 300f, 450f, 650f, 1000f, 2000f)),
-        
         "weight" to UpgradeConfig("weight", "Capacidad", "⚖️", "kg", 
             listOf(60, 200, 600, 1500, 4000, 10000, 25000, 60000, 150000),
             listOf(20f, 35f, 55f, 85f, 130f, 200f, 320f, 500f, 800f, 1500f)),
-        
         "pts" to UpgradeConfig("pts", "Valor", "⭐", "x", 
             listOf(100, 300, 1000, 3000, 8000, 20000, 50000, 120000, 300000),
             listOf(1.0f, 1.5f, 2.2f, 3.5f, 5.5f, 9f, 15f, 25f, 45f, 100f)),
-        
         "crew" to UpgradeConfig("crew", "Tripulación", "👨‍✈️", "/s", 
             listOf(500, 1500, 5000, 15000, 50000, 150000, 500000),
             listOf(0f, 10f, 50f, 250f, 1200f, 6000f, 35000f, 200000f))
