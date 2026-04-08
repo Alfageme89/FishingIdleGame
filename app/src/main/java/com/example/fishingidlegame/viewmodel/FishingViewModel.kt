@@ -22,14 +22,14 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
     val fishList = _fishList.asStateFlow()
 
     private var toastJob: Job? = null
-    private var activeMaxDepth = 20f
-    private var activeMaxKg = 20f
+    private var activeMaxDepth = 40f
+    private var activeMaxKg = 15f
     private var activePtsMult = 1f
+    private var steeringPower = 0.05f
 
     private val surfaceY = 400f
-    private val worldWidth = 480f
+    private val worldWidth = 1080f
 
-    // Lógica de Boss Fight (Tug-of-War por toques)
     private var tensionValue = 50f
     private var bossStamina = 100f
 
@@ -43,35 +43,31 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
             val savedState = repository.loadProgress()
             _state.update { savedState }
             updateActiveStats()
-            checkBiomeUnlocked()
-            spawnInitialFish()
+            spawnFishForCurrentDepth()
         }
     }
 
-    private fun saveUserData() {
-        viewModelScope.launch { repository.saveProgress(_state.value) }
+    private fun spawnFishForCurrentDepth() {
+        val currentMaxY = surfaceY + (activeMaxDepth * GameConfig.M2PX_BASE)
+        _fishList.update { 
+            List(GameConfig.NUM_FISH) { createRandomFish(currentMaxY) }
+        }
     }
 
-    private fun spawnInitialFish() {
-        _fishList.value = List(GameConfig.NUM_FISH) { createRandomFish() }
-    }
-
-    private fun createRandomFish(): Fish {
+    private fun createRandomFish(maxY: Float): Fish {
         val currentBiome = GameConfig.biomes[_state.value.currentBiomeIndex]
         val fishName = currentBiome.fishTypeNames.random()
         val typeConfig = GameConfig.fishTypes[fishName] ?: GameConfig.fishTypes.values.first()
-        val multiplier = (50..220).random() / 100f
-        val actualKg = typeConfig.baseKg * multiplier
-        val actualPts = (typeConfig.basePoints * multiplier * _state.value.prestigeMultiplier).toInt()
-
+        val multiplier = (70..180).random() / 100f
+        
         return Fish(
             type = typeConfig,
-            x = (30..450).random().toFloat(),
-            y = surfaceY + (100..4000).random().toFloat(),
-            vx = ((-180..180).random() / 100f),
-            vy = ((-40..40).random() / 100f),
-            kg = actualKg,
-            pts = actualPts,
+            x = (50..(worldWidth.toInt() - 50)).random().toFloat(),
+            y = (surfaceY.toInt() + 100..maxY.toInt()).random().toFloat(),
+            vx = ((-250..250).random() / 100f),
+            vy = ((-80..80).random() / 100f),
+            kg = typeConfig.baseKg * multiplier,
+            pts = (typeConfig.basePoints * multiplier * _state.value.prestigeMultiplier).toInt(),
             multiplier = multiplier
         )
     }
@@ -80,20 +76,8 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         viewModelScope.launch {
             while (true) {
                 updateGame()
-                applyCrewEarnings()
                 delay(16)
             }
-        }
-    }
-
-    private fun applyCrewEarnings() {
-        val crewLevel = _state.value.upgLevels["crew"] ?: 0
-        if (crewLevel > 0) {
-            val earningsPerFrame = GameConfig.upgrades["crew"]!!.values[crewLevel] / 60f
-            _state.update { it.copy(
-                score = it.score + earningsPerFrame.toLong(),
-                totalLifetimeScore = it.totalLifetimeScore + earningsPerFrame.toLong()
-            ) }
         }
     }
 
@@ -102,7 +86,12 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         if (currentState.gamePhase == "BOSS_FIGHT") {
             updateBossFightLogic()
         } else {
-            val newCamY = currentState.camY + (currentState.camYTarget - currentState.camY) * 0.1f
+            val newCamY = currentState.camY + (currentState.camYTarget - currentState.camY) * 0.12f
+            
+            // Movimiento suave del anzuelo hacia el objetivo X
+            val newHookX = currentState.hookX + (currentState.hookXTarget - currentState.hookX) * steeringPower
+            
+            _state.update { it.copy(hookX = newHookX) }
             updateStandardGame(currentState, newCamY)
         }
     }
@@ -111,14 +100,14 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         _fishList.update { list ->
             list.map { fish ->
                 if (fish.isCaught) {
-                    fish.copy(x = currentState.hookX, y = currentState.hookY + 20f)
+                    fish.copy(x = currentState.hookX, y = currentState.hookY + 25f)
                 } else {
                     var nx = fish.x + fish.vx
                     var ny = fish.y + fish.vy
                     var nvx = fish.vx
                     var nvy = fish.vy
-                    if (nx < 20 || nx > worldWidth - 20) nvx *= -1
-                    if (ny < surfaceY + 20 || ny > surfaceY + 10000) nvy *= -1
+                    if (nx < 0 || nx > worldWidth) nvx *= -1
+                    if (ny < surfaceY || ny > surfaceY + 10000f) nvy *= -1
                     fish.copy(x = nx, y = ny, vx = nvx, vy = nvy)
                 }
             }
@@ -127,14 +116,13 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         when (currentState.gamePhase) {
             "FISHING" -> {
                 val newHookY = currentState.hookY + GameConfig.CAST_SPEED
-                var camTarget = currentState.camYTarget
-                if (newHookY - newCamY > 600f) camTarget = newHookY - 600f
-
+                var camTarget = (newHookY - 500f).coerceAtLeast(0f)
                 val biomeLimit = surfaceY + ((currentState.currentBiomeIndex + 1) * 300 * GameConfig.M2PX_BASE)
-                
+                val upgradeLimit = surfaceY + (activeMaxDepth * GameConfig.M2PX_BASE)
+
                 if (newHookY >= biomeLimit && !currentState.bossActive) {
                     startBossFight()
-                } else if (newHookY >= surfaceY + (activeMaxDepth * GameConfig.M2PX_BASE)) {
+                } else if (newHookY >= upgradeLimit) {
                     _state.update { it.copy(gamePhase = "REELING", camYTarget = camTarget, camY = newCamY) }
                 } else {
                     _state.update { it.copy(hookY = newHookY, camYTarget = camTarget, camY = newCamY) }
@@ -142,23 +130,62 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
                 }
             }
             "REELING" -> {
-                val reelSpeed = GameConfig.REEL_SPEED_BASE + (GameConfig.REEL_SPEED_FULL - GameConfig.REEL_SPEED_BASE) * 0.5f
+                val isFast = currentState.currentKg >= activeMaxKg
+                val reelSpeed = if (isFast) GameConfig.REEL_SPEED_FULL else GameConfig.REEL_SPEED_BASE
                 val newHookY = currentState.hookY - reelSpeed
-                var camTarget = currentState.camYTarget
-                if (newHookY - newCamY < 300f) camTarget = (newHookY - 300f).coerceAtLeast(0f)
+                val camTarget = (newHookY - 400f).coerceAtLeast(0f)
 
-                if (newHookY <= surfaceY - 50f) {
+                if (newHookY <= surfaceY - 100f) {
                     finishRound()
                 } else {
                     _state.update { it.copy(hookY = newHookY, camYTarget = camTarget, camY = newCamY) }
-                    if (!currentState.weightFull) checkCollisions()
+                    if (currentState.currentKg < activeMaxKg) checkCollisions()
                 }
             }
             else -> _state.update { it.copy(camY = newCamY) }
         }
     }
 
-    // ── LÓGICA DE BOSS REFORMULADA (TOQUES) ──
+    private fun checkCollisions() {
+        val currentState = _state.value
+        _fishList.update { list ->
+            list.map { fish ->
+                if (!fish.isCaught) {
+                    val dx = fish.x - currentState.hookX
+                    val dy = fish.y - (currentState.hookY + 20f)
+                    val dist = sqrt(dx * dx + dy * dy)
+                    
+                    if (dist < 50f) {
+                        val newTotalWeight = currentState.currentKg + fish.kg
+                        if (newTotalWeight <= activeMaxKg) {
+                            val earned = (fish.pts * activePtsMult).toLong()
+                            
+                            // Registrar captura para colección
+                            val newSpecies = currentState.caughtSpecies.toMutableSet()
+                            newSpecies.add(fish.type.name)
+                            val newCounts = currentState.speciesCounts.toMutableMap()
+                            newCounts[fish.type.name] = (newCounts[fish.type.name] ?: 0) + 1
+
+                            _state.update { it.copy(
+                                currentKg = newTotalWeight,
+                                score = it.score + earned,
+                                totalLifetimeScore = it.totalLifetimeScore + earned,
+                                totalFishCaught = it.totalFishCaught + 1,
+                                caughtSpecies = newSpecies,
+                                speciesCounts = newCounts
+                            ) }
+                            showToast("🐟 ${fish.type.name} +${earned}")
+                            return@map fish.copy(isCaught = true)
+                        } else {
+                            _state.update { it.copy(weightFull = true) }
+                        }
+                    }
+                }
+                fish
+            }
+        }
+    }
+
     private fun startBossFight() {
         val biome = GameConfig.biomes[_state.value.currentBiomeIndex]
         val bossConfig = GameConfig.bosses[biome.bossName] ?: return
@@ -170,80 +197,114 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
             bossHealth = bossStamina,
             bossMaxHealth = bossConfig.maxHealth
         ) }
-        showToast("🎣 ¡HA PICADO UN MONSTRUO! ¡DA TOQUES!")
+        showToast("🎣 ¡JEFE DETECTADO! ¡TOCA RÁPIDO!")
     }
 
-    // Se llama cada vez que el usuario toca la pantalla
     fun onPlayerTap() {
         if (_state.value.gamePhase == "BOSS_FIGHT") {
-            tensionValue += 6f // Impulso por toque
+            tensionValue += 10f // Aumentado impacto del toque
+        }
+    }
+
+    fun setHookTarget(x: Float) {
+        if (_state.value.gamePhase == "FISHING" || _state.value.gamePhase == "REELING") {
+            _state.update { it.copy(hookXTarget = x) }
+        }
+    }
+
+    fun forceReel() {
+        if (_state.value.gamePhase == "FISHING") {
+            _state.update { it.copy(gamePhase = "REELING") }
         }
     }
 
     private fun updateBossFightLogic() {
-        // La tensión cae naturalmente (el boss tira)
-        // La caída es más fuerte cuanto más profundo sea el bioma
-        val dropSpeed = 0.8f + (_state.value.currentBiomeIndex * 0.3f)
+        // Balanceo: el primer boss es mucho más fácil
+        val isFirstBoss = _state.value.currentBiomeIndex == 0
+        val baseDrop = if (isFirstBoss) 0.35f else 0.6f
+        val dropSpeed = baseDrop + (_state.value.currentBiomeIndex * 0.4f)
+        
         tensionValue -= dropSpeed
+        tensionValue += (Math.random().toFloat() - 0.5f) * 1.5f
 
-        // Oscilación aleatoria para simular lucha real
-        tensionValue += (Math.random().toFloat() - 0.5f) * 2f
-
-        // Solo hace daño en el "Sweet Spot" (entre 45 y 75)
-        if (tensionValue in 45f..75f) {
-            val damage = 0.5f * (1 + (_state.value.upgLevels["pts"] ?: 0) * 0.15f)
+        // Margen más amplio para el primer boss (30..90 vs 40..80)
+        val range = if (isFirstBoss) 30f..90f else 40f..80f
+        
+        if (tensionValue in range) {
+            val damage = 0.5f * (1 + (_state.value.upgLevels["steering"] ?: 0) * 0.2f)
             bossStamina -= damage
         }
 
-        // Comprobar límites
         if (tensionValue >= 100f) {
-            showToast("💥 ¡SEDAL ROTO! ¡Demasiada fuerza!")
+            showToast("💥 ¡LÍNEA ROTA!")
             finishRound()
         } else if (tensionValue <= 0f) {
-            showToast("💨 ¡SE HA ESCAPADO! ¡Tira más!")
+            showToast("💨 ¡SE ESCAPÓ!")
             finishRound()
         } else if (bossStamina <= 0f) {
             winBossFight()
         }
 
-        _state.update { it.copy(bossHealth = bossStamina) }
+        _state.update { it.copy(bossHealth = bossStamina, bossTension = tensionValue) }
     }
 
     private fun winBossFight() {
         val biome = GameConfig.biomes[_state.value.currentBiomeIndex]
-        val reward = GameConfig.bosses[biome.bossName]?.reward ?: 0L
-        showToast("🏆 ¡DERROTADO! Recompensa: $reward pts")
+        val reward = GameConfig.bosses[biome.bossName]?.reward ?: 5000L
         _state.update { it.copy(
             gamePhase = "REELING",
             bossActive = false,
             score = it.score + reward,
             totalLifetimeScore = it.totalLifetimeScore + reward,
-            nextBiomeUnlocked = true
+            nextBiomeUnlocked = true,
+            maxBiomeReached = (_state.value.maxBiomeReached).coerceAtLeast(_state.value.currentBiomeIndex + 1)
         ) }
+        showToast("🏆 ¡${biome.bossName} CAPTURADO! +$reward")
         saveUserData()
     }
 
     fun launchHook(startX: Float) {
         if (_state.value.gamePhase == "MENU") {
-            _state.update { it.copy(gamePhase = "FISHING", hookX = startX, hookY = surfaceY - 60f, currentKg = 0f, weightFull = false) }
+            _state.update { it.copy(
+                gamePhase = "FISHING",
+                hookX = startX,
+                hookXTarget = startX,
+                hookY = surfaceY - 50f,
+                currentKg = 0f,
+                weightFull = false,
+                camYTarget = 0f
+            ) }
         }
     }
 
-    private fun finishRound() {
-        _state.update { it.copy(gamePhase = "MENU", bossActive = false) }
-        _fishList.update { list ->
-            list.filter { !it.isCaught } + List(GameConfig.NUM_FISH - list.count { !it.isCaught }) { createRandomFish() }
+    fun changeBiome(index: Int) {
+        if (index <= _state.value.maxBiomeReached) {
+            _state.update { it.copy(currentBiomeIndex = index, showMapSelector = false) }
+            spawnFishForCurrentDepth()
+            saveUserData()
         }
+    }
+
+    fun toggleCollection(show: Boolean) { _state.update { it.copy(showCollection = show) } }
+    fun toggleMapSelector(show: Boolean) { _state.update { it.copy(showMapSelector = show) } }
+
+    private fun finishRound() {
+        _state.update { it.copy(gamePhase = "MENU", bossActive = false, camYTarget = 0f) }
+        spawnFishForCurrentDepth()
         checkBiomeUnlocked()
         saveUserData()
     }
 
     private fun checkBiomeUnlocked() {
         val currentState = _state.value
-        val nextBiomeIndex = currentState.currentBiomeIndex + 1
-        if (nextBiomeIndex < GameConfig.biomes.size && currentState.nextBiomeUnlocked) {
-            _state.update { it.copy(currentBiomeIndex = nextBiomeIndex, nextBiomeUnlocked = false) }
-            showToast("🌎 NUEVO BIOMA: ${GameConfig.biomes[nextBiomeIndex].name}")
+        val nextIndex = currentState.currentBiomeIndex + 1
+        if (nextIndex < GameConfig.biomes.size && currentState.nextBiomeUnlocked) {
+            _state.update { it.copy(
+                currentBiomeIndex = nextIndex, 
+                nextBiomeUnlocked = false,
+                maxBiomeReached = nextIndex.coerceAtLeast(currentState.maxBiomeReached)
+            ) }
+            showToast("🌎 NUEVO BIOMA: ${GameConfig.biomes[nextIndex].name}")
         }
     }
 
@@ -260,43 +321,27 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
                 }
                 updateActiveStats()
                 saveUserData()
+            } else {
+                showToast("❌ No tienes puntos suficientes")
             }
         }
     }
 
     private fun updateActiveStats() {
         val levels = _state.value.upgLevels
-        activeMaxDepth = GameConfig.upgrades["depth"]?.values?.get(levels["depth"] ?: 0) ?: 20f
-        activeMaxKg = GameConfig.upgrades["weight"]?.values?.get(levels["weight"] ?: 0) ?: 20f
+        activeMaxDepth = GameConfig.upgrades["depth"]?.values?.get(levels["depth"] ?: 0) ?: 40f
+        activeMaxKg = GameConfig.upgrades["weight"]?.values?.get(levels["weight"] ?: 0) ?: 15f
         activePtsMult = GameConfig.upgrades["pts"]?.values?.get(levels["pts"] ?: 0) ?: 1f
+        steeringPower = GameConfig.upgrades["steering"]?.values?.get(levels["steering"] ?: 0) ?: 0.05f
     }
 
-    private fun checkCollisions() {
-        val currentState = _state.value
-        _fishList.update { list ->
-            list.map { fish ->
-                if (!fish.isCaught) {
-                    val dx = fish.x - currentState.hookX
-                    val dy = fish.y - currentState.hookY
-                    val dist = sqrt(dx * dx + dy * dy)
-                    if (dist < 35f) {
-                        val newTotalWeight = currentState.currentKg + fish.kg
-                        if (newTotalWeight <= activeMaxKg) {
-                            val earned = (fish.pts * activePtsMult).toLong()
-                            _state.update { it.copy(currentKg = newTotalWeight, score = it.score + earned, totalLifetimeScore = it.totalLifetimeScore + earned, totalFishCaught = it.totalFishCaught + 1) }
-                            showToast("🐟 ${fish.type.name} +${earned}")
-                            return@map fish.copy(isCaught = true)
-                        }
-                    }
-                }
-                fish
-            }
-        }
+    private fun saveUserData() {
+        viewModelScope.launch { repository.saveProgress(_state.value) }
     }
 
     private fun showToast(msg: String) {
         toastJob?.cancel()
         _state.update { it.copy(toastMessage = msg) }
-        toastJob = viewModelScope.launch { delay(2500); _state.update { it.copy(toastMessage = null) } }
+        toastJob = viewModelScope.launch { delay(2000); _state.update { it.copy(toastMessage = null) } }
     }
 }
