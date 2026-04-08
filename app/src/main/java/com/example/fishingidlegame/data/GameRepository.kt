@@ -15,35 +15,43 @@ class GameRepository(context: Context) {
             putInt("totalFish", state.totalFishCaught)
             putFloat("prestigeMult", state.prestigeMultiplier)
             putLong("lifetimeScore", state.totalLifetimeScore)
-            putLong("lastTime", System.currentTimeMillis())
-            // Guardar niveles de upgrades
-            state.upgLevels.forEach { (key, level) ->
-                putInt("upg_$key", level)
-            }
+            putInt("currentBiome", state.currentBiomeIndex)
+            putInt("maxBiome", state.maxBiomeReached)
+            
+            putStringSet("caughtSpecies", state.caughtSpecies)
+            state.speciesCounts.forEach { (name, count) -> putInt("count_$name", count) }
+            state.maxWeights.forEach { (name, weight) -> putFloat("weight_$name", weight) }
+
+            state.upgLevels.forEach { (key, level) -> putInt("upg_$key", level) }
             apply()
         }
     }
 
     suspend fun loadProgress(): GameState = withContext(Dispatchers.IO) {
-        val score = prefs.getLong("score", 0L)
-        val totalFish = prefs.getInt("totalFish", 0)
-        val prestigeMult = prefs.getFloat("prestigeMult", 1.0f)
-        val lifetimeScore = prefs.getLong("lifetimeScore", 0L)
-        val lastTime = prefs.getLong("lastTime", System.currentTimeMillis())
+        val caughtSpecies = prefs.getStringSet("caughtSpecies", emptySet()) ?: emptySet()
+        val levels = mutableMapOf<String, Int>()
+        listOf("depth", "weight", "pts", "crew", "steering", "turbo", "boss").forEach { key ->
+            levels[key] = prefs.getInt("upg_$key", 0)
+        }
+
+        val counts = mutableMapOf<String, Int>()
+        val weights = mutableMapOf<String, Float>()
+        caughtSpecies.forEach { name ->
+            counts[name] = prefs.getInt("count_$name", 0)
+            weights[name] = prefs.getFloat("weight_$name", 0f)
+        }
         
-        val levels = mapOf(
-            "depth" to prefs.getInt("upg_depth", 0),
-            "weight" to prefs.getInt("upg_weight", 0),
-            "pts" to prefs.getInt("upg_pts", 0),
-            "crew" to prefs.getInt("upg_crew", 0)
-        )
         GameState(
-            score = score,
-            totalFishCaught = totalFish,
+            score = prefs.getLong("score", 0L),
+            totalFishCaught = prefs.getInt("totalFish", 0),
             upgLevels = levels,
-            prestigeMultiplier = prestigeMult,
-            totalLifetimeScore = lifetimeScore,
-            lastTimestamp = lastTime
+            currentBiomeIndex = prefs.getInt("currentBiome", 0),
+            maxBiomeReached = prefs.getInt("maxBiome", 0),
+            caughtSpecies = caughtSpecies,
+            speciesCounts = counts,
+            maxWeights = weights,
+            prestigeMultiplier = prefs.getFloat("prestigeMult", 1.0f),
+            totalLifetimeScore = prefs.getLong("lifetimeScore", 0L)
         )
     }
 }
