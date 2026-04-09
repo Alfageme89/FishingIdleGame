@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.math.sqrt
 import kotlin.math.roundToInt
+import kotlin.math.pow
+import java.util.*
 
 class FishingViewModel(private val repository: GameRepository) : ViewModel() {
 
@@ -53,47 +55,68 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
     }
 
     fun requestPrestige() {
-        _state.update { it.copy(showPrestigeConfirm = true) }
+        val currentState = _state.value
+        val currentPrestigeLevel = ((currentState.prestigeMultiplier - 1f) / 0.15f).roundToInt()
+        val requiredScore = (100000 * (currentPrestigeLevel + 1).toDouble().pow(1.5)).toLong()
+        
+        val canPrestige = currentState.maxBiomeReached >= 1 || currentState.score >= requiredScore
+        
+        if (canPrestige) {
+            _state.update { it.copy(showPrestigeConfirm = true) }
+        } else {
+            showToast("🔒 Necesitas ${formatPoints(requiredScore)} pts para el siguiente nivel")
+        }
     }
 
     fun confirmPrestige() {
         viewModelScope.launch {
-            val currentPrestige = _state.value.prestigeMultiplier
-            val newPrestige = currentPrestige + 0.15f // Aumentamos el bono a 15% para que se sienta mejor
+            val currentState = _state.value
+            val biomeBonus = currentState.maxBiomeReached * 0.05f
+            val speciesBonus = (currentState.caughtSpecies.size / 2) * 0.01f
+            val calculatedIncrement = 0.15f + biomeBonus + speciesBonus
+            
+            val newPrestige = currentState.prestigeMultiplier + calculatedIncrement
             
             val newState = GameState(
                 prestigeMultiplier = newPrestige,
-                maxBiomeReached = _state.value.maxBiomeReached,
-                caughtSpecies = _state.value.caughtSpecies,
-                speciesCounts = _state.value.speciesCounts,
-                maxWeights = _state.value.maxWeights
+                prestigeLevel = currentState.prestigeLevel + 1,
+                maxBiomeReached = currentState.maxBiomeReached,
+                caughtSpecies = currentState.caughtSpecies,
+                speciesCounts = currentState.speciesCounts,
+                maxWeights = currentState.maxWeights,
+                score = 0,
+                upgLevels = mapOf(
+                    "depth" to 0, "weight" to 0, "steering" to 0,
+                    "turbo" to 0, "boss" to 0, "bait" to 0 
+                ),
+                musicEnabled = currentState.musicEnabled,
+                sfxEnabled = currentState.sfxEnabled
             )
             
             repository.saveProgress(newState)
-            _state.value = newState
+            _state.update { newState }
             updateActiveStats()
             spawnWorldElements()
-            showToast("✨ NUEVO CICLO: MULTIPLICADOR x${String.format("%.2f", newPrestige)}")
-        }
-    }
-
-    fun resetGameFull() {
-        viewModelScope.launch {
-            val newState = GameState()
-            repository.saveProgress(newState)
-            _state.value = newState
-            updateActiveStats()
-            spawnWorldElements()
-            showToast("⚠️ PROGRESO REINICIADO")
+            showToast("🚀 EXPEDICIÓN MEJORADA: +${(calculatedIncrement * 100).roundToInt()}% BONO")
         }
     }
 
     private fun spawnWorldElements() {
+        val currentState = _state.value
         val currentMaxY = surfaceY + (activeMaxDepth * GameConfig.M2PX_BASE)
         val numFish = ((activeMaxDepth / 100f) * GameConfig.NUM_FISH_PER_100M).toInt().coerceAtLeast(25)
 
+        val biomeLimit = surfaceY + ((currentState.currentBiomeIndex + 1) * 300 * GameConfig.M2PX_BASE)
+        val bossNoFishZone = 500f
+
         _fishList.update { 
-            List(numFish) { createRandomFish(activeMaxDepth) } 
+            List(numFish) { 
+                val fish = createRandomFish(activeMaxDepth)
+                if (fish.y > biomeLimit - bossNoFishZone) {
+                    fish.y -= bossNoFishZone + (50..200).random().toFloat()
+                }
+                fish
+            } 
         }
         _powerUps.update { List(GameConfig.NUM_POWERUPS) { createRandomPowerUp(currentMaxY) } }
     }
@@ -162,9 +185,7 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
     private fun updateGame() {
         val currentState = _state.value
         when (currentState.gamePhase) {
-            "BOSS_WARNING" -> {
-                // No hay movimiento de anzuelo aquí, solo cuenta atrás
-            }
+            "BOSS_WARNING" -> { }
             "BOSS_FIGHT" -> updateBossFightLogic()
             else -> {
                 val newCamY = currentState.camY + (currentState.camYTarget - currentState.camY) * 0.15f
@@ -318,7 +339,6 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
 
     fun onPlayerTap() {
         if (_state.value.gamePhase == "BOSS_FIGHT") {
-            // Nueva mecánica: Los toques ahora "estabilizan" la línea pero el daño es constante si estás en zona verde
             tensionValue += 10f * bossStability
         }
     }
@@ -328,16 +348,12 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
     fun forceReel() { if (_state.value.gamePhase == "FISHING") _state.update { it.copy(gamePhase = "REELING", isTurbo = false) } }
 
     private fun updateBossFightLogic() {
-        // El boss tira con fuerza variable
         val baseDrop = 0.5f + (_state.value.currentBiomeIndex * 0.4f)
         val dropSpeed = (baseDrop + (Math.sin(System.currentTimeMillis() / 500.0).toFloat() * 0.5f)) / bossStability
         
         tensionValue -= dropSpeed
-        
-        // Zona Verde (Dificultad ajustada)
         val range = 35f..85f
         if (tensionValue in range) {
-            // El daño al boss depende de la mejora de "Giro" (steering) que actúa como fuerza de captura
             val damage = 0.4f + (_state.value.upgLevels["steering"] ?: 0) * 0.15f
             bossStamina -= damage
         }
@@ -381,7 +397,34 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
     fun toggleCollection(show: Boolean) { _state.update { it.copy(showCollection = show) } }
     fun toggleMapSelector(show: Boolean) { _state.update { it.copy(showMapSelector = show) } }
     fun toggleShop(show: Boolean) { _state.update { it.copy(showShop = show) } }
+    fun toggleSettings(show: Boolean) { _state.update { it.copy(showSettings = show) } }
     fun closePrestigeConfirm() { _state.update { it.copy(showPrestigeConfirm = false) } }
+
+    fun toggleMusic() { _state.update { it.copy(musicEnabled = !it.musicEnabled) }; saveUserData() }
+    fun toggleSFX() { _state.update { it.copy(sfxEnabled = !it.sfxEnabled) }; saveUserData() }
+    
+    fun requestReset() { _state.update { it.copy(showResetConfirm = true) } }
+    fun cancelReset() { _state.update { it.copy(showResetConfirm = false) } }
+    fun confirmReset() {
+        viewModelScope.launch {
+            val newState = GameState()
+            repository.saveProgress(newState)
+            _state.value = newState
+            updateActiveStats()
+            spawnWorldElements()
+            showToast("⚠️ TODO REINICIADO")
+        }
+    }
+
+    fun buyConsumable(type: PowerUpType, cost: Long) {
+        if (_state.value.score >= cost) {
+            _state.update { it.copy(score = it.score - cost) }
+            activatePowerUp(type)
+            saveUserData()
+        } else {
+            showToast("💸 No tienes suficientes puntos")
+        }
+    }
 
     private fun finishRound() {
         _state.update { it.copy(gamePhase = "MENU", bossActive = false, bossWarningActive = false, camYTarget = 0f, isTurbo = false) }
@@ -434,4 +477,12 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         _state.update { it.copy(toastMessage = msg) }
         toastJob = viewModelScope.launch { delay(2000); _state.update { it.copy(toastMessage = null) } }
     }
+}
+
+fun formatPoints(pts: Long): String {
+    if (pts < 1000) return pts.toString()
+    val exp = (Math.log(pts.toDouble()) / Math.log(1000.0)).toInt()
+    val suffixes = arrayOf("k", "M", "B", "T", "P", "E")
+    val value = pts / Math.pow(1000.0, exp.toDouble())
+    return String.format(Locale.getDefault(), "%.2f%s", value, suffixes[exp - 1])
 }

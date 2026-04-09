@@ -96,6 +96,7 @@ data class GameState(
     val maxWeights: Map<String, Float> = emptyMap(),
     
     val prestigeMultiplier: Float = 1.0f,
+    val prestigeLevel: Int = 0,
     val totalLifetimeScore: Long = 0,
     val lastTimestamp: Long = System.currentTimeMillis(),
     
@@ -113,6 +114,11 @@ data class GameState(
     val showMapSelector: Boolean = false,
     val showPrestigeConfirm: Boolean = false,
     val showShop: Boolean = false,
+    val showSettings: Boolean = false,
+    val showResetConfirm: Boolean = false,
+    
+    val musicEnabled: Boolean = true,
+    val sfxEnabled: Boolean = true,
     
     val activePowerUps: Map<PowerUpType, Long> = emptyMap()
 )

@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.example.fishingidlegame.config.*
 import com.example.fishingidlegame.model.*
 import com.example.fishingidlegame.viewmodel.FishingViewModel
+import com.example.fishingidlegame.viewmodel.formatPoints
 import kotlin.math.roundToInt
 
 @Composable
@@ -104,6 +105,9 @@ fun GameScreen(viewModel: FishingViewModel) {
         if (state.showCollection) CollectionOverlay(state, onFishClick = { selectedFishForDetail = it }, onClose = { viewModel.toggleCollection(false) })
         if (state.showMapSelector) MapSelectorOverlay(state, onSelect = { viewModel.changeBiome(it) }, onClose = { viewModel.toggleMapSelector(false) })
         if (state.showPrestigeConfirm) PrestigeConfirmOverlay(state, onConfirm = { viewModel.confirmPrestige() }, onCancel = { viewModel.closePrestigeConfirm() })
+        if (state.showShop) ShopOverlay(state, onClose = { viewModel.toggleShop(false) }, onBuy = { type, cost -> viewModel.buyConsumable(type, cost) })
+        if (state.showSettings) SettingsOverlay(state, viewModel)
+        if (state.showResetConfirm) ResetConfirmOverlay(onConfirm = { viewModel.confirmReset() }, onCancel = { viewModel.cancelReset() })
         
         selectedFishForDetail?.let { FishDetailOverlay(it, state) { selectedFishForDetail = null } }
 
@@ -132,7 +136,7 @@ fun MainMenuUI(state: GameState, viewModel: FishingViewModel) {
             GachaButton("Diario", Icons.Default.MenuBook) { viewModel.toggleCollection(true) }
             GachaButton("Mapas", Icons.Default.Map) { viewModel.toggleMapSelector(true) }
             GachaButton("Tienda", Icons.Default.ShoppingCart) { viewModel.toggleShop(true) }
-            GachaButton("Ajustes", Icons.Default.Settings) { }
+            GachaButton("Ajustes", Icons.Default.Settings) { viewModel.toggleSettings(true) }
         }
 
         // Cuadrícula de Mejoras
@@ -150,13 +154,129 @@ fun MainMenuUI(state: GameState, viewModel: FishingViewModel) {
                         row.forEach { upg ->
                             val level = state.upgLevels[upg.id] ?: 0
                             val cost = if(level < upg.levels.size) upg.levels[level] else -1
+                            val currentValue = if (level < upg.values.size) upg.values[level] else upg.values.last()
                             Box(modifier = Modifier.weight(1f)) {
-                                UpgradeCardSmall(upg, level, cost, state.score >= cost && cost != -1) { viewModel.buyUpgrade(upg.id) }
+                                UpgradeCardSmall(upg, level, cost, currentValue, state.score >= cost && cost != -1) { viewModel.buyUpgrade(upg.id) }
                             }
                         }
                         if (row.size < 3) repeat(3 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ShopOverlay(state: GameState, onClose: () -> Unit, onBuy: (PowerUpType, Long) -> Unit) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.85f)).clickable { onClose() }, contentAlignment = Alignment.Center) {
+        Card(
+            modifier = Modifier.fillMaxWidth(0.9f).fillMaxHeight(0.7f).clickable(enabled = false) { },
+            shape = RoundedCornerShape(32.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1B2F))
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("SUMINISTROS", color = Color.White, fontWeight = FontWeight.Black, fontSize = 24.sp)
+                    Text("${formatPoints(state.score)} pts", color = Color.Cyan, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                val items = listOf(
+                    Triple(PowerUpType.SPEED, "Propulsor Nitro", 500L),
+                    Triple(PowerUpType.MAGNET, "Súper Imán", 800L),
+                    Triple(PowerUpType.SHIELD, "Escudo de Red", 1200L),
+                    Triple(PowerUpType.GOLD, "Anzuelo Dorado", 2000L)
+                )
+
+                items.forEach { (type, name, cost) ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onBuy(type, cost) },
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF16213E))
+                    ) {
+                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            val icon = when(type) {
+                                PowerUpType.SPEED -> "🚀"
+                                PowerUpType.MAGNET -> "🧲"
+                                PowerUpType.SHIELD -> "🛡️"
+                                PowerUpType.GOLD -> "💰"
+                            }
+                            Text(icon, fontSize = 32.sp)
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(name, color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("Consumible 12s", color = Color.White.copy(0.5f), fontSize = 12.sp)
+                            }
+                            Button(onClick = { onBuy(type, cost) }, enabled = state.score >= cost, colors = ButtonDefaults.buttonColors(containerColor = Color.Cyan)) {
+                                Text("${formatPoints(cost)}", color = Color.Black, fontWeight = FontWeight.Black)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsOverlay(state: GameState, viewModel: FishingViewModel) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.85f)).clickable { viewModel.toggleSettings(false) }, contentAlignment = Alignment.Center) {
+        Card(
+            modifier = Modifier.fillMaxWidth(0.85f).clickable(enabled = false) { },
+            shape = RoundedCornerShape(32.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A2E))
+        ) {
+            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("CONFIGURACIÓN", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                SettingsToggle("Música", state.musicEnabled) { viewModel.toggleMusic() }
+                SettingsToggle("Efectos SFX", state.sfxEnabled) { viewModel.toggleSFX() }
+                
+                Spacer(modifier = Modifier.height(40.dp))
+                
+                TextButton(onClick = { viewModel.requestReset() }) {
+                    Text("BORRAR PROGRESO", color = Color.Red.copy(0.7f), fontSize = 12.sp)
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = { viewModel.toggleSettings(false) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(0.1f))) {
+                    Text("CERRAR", color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsToggle(label: String, enabled: Boolean, onToggle: () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = Color.White, fontWeight = FontWeight.Bold)
+        Switch(checked = enabled, onCheckedChange = { onToggle() }, colors = SwitchDefaults.colors(checkedThumbColor = Color.Cyan))
+    }
+}
+
+@Composable
+fun ResetConfirmOverlay(onConfirm: () -> Unit, onCancel: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.9f)).clickable { onCancel() }, contentAlignment = Alignment.Center) {
+        Card(
+            modifier = Modifier.fillMaxWidth(0.8f).clickable(enabled = false) { },
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2B1010))
+        ) {
+            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.Warning, null, tint = Color.Red, modifier = Modifier.size(48.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("¿ESTÁS SEGURO?", color = Color.White, fontWeight = FontWeight.Black, fontSize = 20.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Esta acción eliminará TODO tu progreso permanentemente (incluyendo prestigio y colección).", color = Color.White.copy(0.7f), textAlign = TextAlign.Center, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(32.dp))
+                Button(onClick = onConfirm, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) {
+                    Text("SÍ, BORRAR TODO", fontWeight = FontWeight.Black)
+                }
+                TextButton(onClick = onCancel) {
+                    Text("CANCELAR", color = Color.White)
                 }
             }
         }
@@ -184,7 +304,6 @@ fun BossFightUI(state: GameState) {
         
         Spacer(modifier = Modifier.height(60.dp))
         
-        // Mecánica de Zona Segura
         Box(modifier = Modifier.width(320.dp).height(50.dp).background(Color.Black.copy(0.6f), RoundedCornerShape(25.dp)).border(2.dp, Color.White.copy(0.2f), RoundedCornerShape(25.dp))) {
             val safeZoneWidth = 0.25f 
             val safeStart = (state.bossSafeZonePos / 100f) - (safeZoneWidth / 2f)
@@ -232,7 +351,7 @@ fun PrestigeConfirmOverlay(state: GameState, onConfirm: () -> Unit, onCancel: ()
                         Text("BONO ACTUAL", color = Color.Gray, fontSize = 10.sp)
                         Text("x${String.format("%.2f", state.prestigeMultiplier)}", color = Color.White, fontWeight = FontWeight.Bold)
                     }
-                    Icon(Icons.Default.DoubleArrow, null, tint = Color.Cyan)
+                    Icon(Icons.Default.ArrowForward, null, tint = Color.Cyan)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("NUEVO BONO", color = Color.Cyan, fontSize = 10.sp)
                         Text("x${String.format("%.2f", state.prestigeMultiplier + 0.15f)}", color = Color.Cyan, fontWeight = FontWeight.Black)
@@ -288,15 +407,12 @@ fun MapSelectorOverlay(state: GameState, onSelect: (Int) -> Unit, onClose: () ->
 fun GameTopHUD(state: GameState, viewModel: FishingViewModel) {
     Row(modifier = Modifier.fillMaxWidth().padding(16.dp).statusBarsPadding(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column {
-            Text("${state.score} Pts", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
+            Text("${formatPoints(state.score)} Pts", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
             Text("BONUS: x${String.format("%.2f", state.prestigeMultiplier)}", color = Color.Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             IconButton(onClick = { viewModel.requestPrestige() }, modifier = Modifier.background(Color.Magenta.copy(0.2f), CircleShape)) {
                 Icon(Icons.Default.AutoAwesome, null, tint = Color.White)
-            }
-            IconButton(onClick = { viewModel.resetGameFull() }, modifier = Modifier.background(Color.Red.copy(0.2f), CircleShape)) {
-                Icon(Icons.Default.Refresh, null, tint = Color.White)
             }
         }
     }
@@ -357,16 +473,18 @@ fun DetailStat(label: String, value: String) {
 }
 
 @Composable
-fun UpgradeCardSmall(upgrade: UpgradeConfig, level: Int, cost: Int, canAfford: Boolean, onClick: () -> Unit) {
+fun UpgradeCardSmall(upgrade: UpgradeConfig, level: Int, cost: Int, currentValue: Float, canAfford: Boolean, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(enabled = cost != -1) { onClick() },
         colors = CardDefaults.cardColors(containerColor = if (canAfford) Color(0xFF1A2B3C) else Color(0xFF0D1621)),
         border = if (canAfford) BorderStroke(1.dp, Color.Cyan.copy(0.5f)) else null
     ) {
         Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(upgrade.icon, fontSize = 20.sp)
-            Text(upgrade.name, fontSize = 9.sp, color = Color.White.copy(0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(if (cost == -1) "MAX" else "$cost", color = if (canAfford) Color.Cyan else Color.Gray, fontWeight = FontWeight.Black, fontSize = 11.sp)
+            Text(upgrade.name, fontSize = 10.sp, color = Color.Cyan, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("Nivel $level", fontSize = 9.sp, color = Color.White.copy(0.6f))
+            Text("${currentValue.toInt()}${upgrade.unit}", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Black)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(if (cost == -1) "MAX" else "Coste: ${formatPoints(cost.toLong())}", color = if (canAfford) Color.Yellow else Color.Gray, fontWeight = FontWeight.Bold, fontSize = 9.sp)
         }
     }
 }
