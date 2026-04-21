@@ -22,6 +22,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -81,6 +82,24 @@ fun GameScreen(viewModel: FishingViewModel) {
                             Text("TURBO", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black)
                         }
                     }
+                }
+
+                // Indicador de peso centrado en la parte inferior
+                val maxKg = GameConfig.upgrades["weight"]?.values?.get(state.upgLevels["weight"] ?: 0) ?: 5f
+                val kgProgress = (state.currentKg / maxKg).coerceIn(0f, 1f)
+                Column(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "${String.format("%.1f", state.currentKg)} / ${maxKg.toInt()} kg",
+                        color = if (kgProgress >= 1f) Color.Red else Color.White.copy(0.85f),
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    LinearProgressIndicator(
+                        progress = kgProgress,
+                        modifier = Modifier.width(90.dp).height(5.dp).clip(RoundedCornerShape(3.dp)),
+                        color = if (kgProgress >= 1f) Color.Red else Color.Cyan,
+                        trackColor = Color.White.copy(0.15f)
+                    )
                 }
 
                 if (state.gamePhase == "FISHING") {
@@ -406,7 +425,11 @@ fun MapSelectorOverlay(state: GameState, onSelect: (Int) -> Unit, onClose: () ->
 @Composable
 fun GameTopHUD(state: GameState, viewModel: FishingViewModel) {
     Row(modifier = Modifier.fillMaxWidth().padding(16.dp).statusBarsPadding(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Column {
+        IconButton(
+            onClick = { viewModel.addPoints(100_000L) },
+            modifier = Modifier.size(36.dp).background(Color(0xFFFFD700).copy(alpha = 0.2f), CircleShape)
+        ) { Text("💰", fontSize = 16.sp) }
+        Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
             Text("${formatPoints(state.score)} Pts", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
             Text("BONUS: x${String.format("%.2f", state.prestigeMultiplier)}", color = Color.Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
@@ -482,7 +505,8 @@ fun UpgradeCardSmall(upgrade: UpgradeConfig, level: Int, cost: Int, currentValue
         Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(upgrade.name, fontSize = 10.sp, color = Color.Cyan, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("Nivel $level", fontSize = 9.sp, color = Color.White.copy(0.6f))
-            Text("${currentValue.toInt()}${upgrade.unit}", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Black)
+            val displayValue = if (upgrade.unit == "x") String.format("%.2f", currentValue) else "${currentValue.toInt()}"
+            Text("$displayValue${upgrade.unit}", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Black)
             Spacer(modifier = Modifier.height(4.dp))
             Text(if (cost == -1) "MAX" else "Coste: ${formatPoints(cost.toLong())}", color = if (canAfford) Color.Yellow else Color.Gray, fontWeight = FontWeight.Bold, fontSize = 9.sp)
         }
@@ -560,15 +584,71 @@ fun GameCanvas(state: GameState, fishList: List<Fish>, powerUps: List<PowerUp>, 
         fishList.forEach { fish ->
             val fy = (fish.y * scale) - camOffset
             if (!fish.isCaught && fy > surfaceY - camOffset) {
-                drawCircle(fish.type.color, radius = 22f * scale, center = Offset(fish.x * scale, fy))
-                if (fish.isRare) drawCircle(Color.Yellow, radius = 28f * scale, center = Offset(fish.x * scale, fy), style = Stroke(width = 4f))
+                val fw = fish.type.width * scale
+                val fh = fish.type.height * scale
+                val cx = fish.x * scale
+                val facingLeft = fish.vx < 0f
+
+                withTransform({
+                    translate(left = cx, top = fy)
+                    if (facingLeft) scale(scaleX = -1f, scaleY = 1f)
+                }) {
+                    if (fish.isRare) {
+                        drawOval(Color.Yellow.copy(alpha = 0.35f),
+                            topLeft = Offset(-(fw + 6f * scale), -(fh + 6f * scale)),
+                            size = Size((fw + 6f * scale) * 2f, (fh + 6f * scale) * 2f))
+                    }
+                    val tailPath = Path().apply {
+                        moveTo(-fw, 0f)
+                        lineTo(-fw - fh * 1.1f,  fh * 0.85f)
+                        lineTo(-fw - fh * 1.1f, -fh * 0.85f)
+                        close()
+                    }
+                    drawPath(tailPath, fish.type.color.copy(alpha = 0.85f))
+                    drawOval(fish.type.color, topLeft = Offset(-fw, -fh), size = Size(fw * 2f, fh * 2f))
+                    val eyeR = (fh * 0.28f).coerceAtLeast(3f * scale)
+                    val eyeX = fw * 0.5f
+                    val eyeY = -fh * 0.3f
+                    drawCircle(Color.White, radius = eyeR, center = Offset(eyeX, eyeY))
+                    drawCircle(Color.Black, radius = eyeR * 0.5f, center = Offset(eyeX + eyeR * 0.15f, eyeY))
+                    if (fish.isRare) drawOval(Color.Yellow, topLeft = Offset(-fw, -fh), size = Size(fw * 2f, fh * 2f), style = Stroke(width = 3f * scale))
+                }
             }
         }
         if (state.gamePhase != "MENU") {
             val hX = state.hookX * scale
             val hY = (state.hookY * scale) - camOffset
             val lineColor = if (state.isTurbo) Color.Cyan else Color.White
-            drawLine(lineColor.copy(0.7f), Offset(size.width/2, (surfaceY - camOffset).coerceAtLeast(0f)), Offset(hX, hY), strokeWidth = 3f)
+            val surfaceScreenY = surfaceY - camOffset
+            val boatCenterX = size.width / 2f
+            val boatTopY = surfaceScreenY - 18f * scale
+            val boatHalfTopW = 55f * scale
+            val boatHalfBotW = 35f * scale
+            val rodTipX = boatCenterX + 10f * scale
+            val rodTipY = boatTopY - 10f * scale
+
+            if (surfaceScreenY >= -30f) {
+                val hullPath = Path().apply {
+                    moveTo(boatCenterX - boatHalfTopW, boatTopY)
+                    lineTo(boatCenterX + boatHalfTopW, boatTopY)
+                    lineTo(boatCenterX + boatHalfBotW, surfaceScreenY)
+                    lineTo(boatCenterX - boatHalfBotW, surfaceScreenY)
+                    close()
+                }
+                drawPath(hullPath, Color(0xFF8B5E3C))
+                drawLine(Color(0xFFA0522D),
+                    Offset(boatCenterX - boatHalfTopW, boatTopY),
+                    Offset(boatCenterX + boatHalfTopW, boatTopY),
+                    strokeWidth = 3f * scale)
+                drawLine(Color(0xFF6B4226),
+                    Offset(boatCenterX, boatTopY),
+                    Offset(rodTipX, rodTipY),
+                    strokeWidth = 2.5f * scale)
+            }
+
+            val lineStartX = if (surfaceScreenY >= -30f) rodTipX else boatCenterX
+            val lineStartY = if (surfaceScreenY >= -30f) rodTipY else surfaceScreenY.coerceAtLeast(0f)
+            drawLine(lineColor.copy(0.7f), Offset(lineStartX, lineStartY), Offset(hX, hY), strokeWidth = 3f)
             drawCircle(lineColor, radius = 12f * scale, center = Offset(hX, hY))
         }
     }

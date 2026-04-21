@@ -215,7 +215,7 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
 
         when (currentState.gamePhase) {
             "FISHING" -> {
-                val speed = if (currentState.isTurbo) GameConfig.CAST_SPEED * turboMult else GameConfig.CAST_SPEED
+                val speed = if (currentState.isTurbo) GameConfig.CAST_SPEED * turboMult * 1.5f else GameConfig.CAST_SPEED
                 val bonusSpeed = if (currentState.activePowerUps.containsKey(PowerUpType.SPEED)) 2.0f else 1.0f
                 val newHookY = currentState.hookY + (speed * bonusSpeed)
                 
@@ -265,7 +265,7 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         val currentState = _state.value
         val hasMagnet = currentState.activePowerUps.containsKey(PowerUpType.MAGNET)
         val hasShield = currentState.activePowerUps.containsKey(PowerUpType.SHIELD)
-        val catchRadius = if (hasMagnet) 160f else 60f
+        val catchRadius = if (hasMagnet) 160f else 60f * baitPower
 
         _powerUps.update { list ->
             list.filter { pu ->
@@ -302,7 +302,7 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
                                 maxWeights = newMaxWeights
                             ) }
                             
-                            showToast("${if(fish.isRare) "✨" else "🐟"} ${fish.type.name} (${fish.tier.label}) +${earned}")
+                            showToast("${if(fish.isRare) "✨" else "🐟"} ${fish.type.name} (${fish.tier.label}) ${String.format("%.1f", fish.kg)}kg +${earned}")
                             return@map fish.copy(isCaught = true)
                         } else {
                             _state.update { it.copy(weightFull = true) }
@@ -326,12 +326,12 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         val biome = GameConfig.biomes[_state.value.currentBiomeIndex]
         val bossConfig = GameConfig.bosses[biome.bossName] ?: return
         tensionValue = 50f
-        bossStamina = bossConfig.maxHealth
+        bossStamina = bossConfig.maxHealth / baitPower
         _state.update { it.copy(
             gamePhase = "BOSS_FIGHT",
             bossActive = true,
             bossHealth = bossStamina,
-            bossMaxHealth = bossConfig.maxHealth,
+            bossMaxHealth = bossStamina,
             bossWarningActive = false,
             isTurbo = false
         ) }
@@ -346,6 +346,7 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
     fun setHookTarget(x: Float) { _state.update { it.copy(hookXTarget = x) } }
     fun setTurbo(active: Boolean) { _state.update { it.copy(isTurbo = active) } }
     fun forceReel() { if (_state.value.gamePhase == "FISHING") _state.update { it.copy(gamePhase = "REELING", isTurbo = false) } }
+    fun addPoints(amount: Long) { _state.update { it.copy(score = it.score + amount, totalLifetimeScore = it.totalLifetimeScore + amount) } }
 
     private fun updateBossFightLogic() {
         val baseDrop = 0.5f + (_state.value.currentBiomeIndex * 0.4f)
@@ -354,7 +355,7 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         tensionValue -= dropSpeed
         val range = 35f..85f
         if (tensionValue in range) {
-            val damage = 0.4f + (_state.value.upgLevels["steering"] ?: 0) * 0.15f
+            val damage = (0.4f + (_state.value.upgLevels["steering"] ?: 0) * 0.15f) * baitPower
             bossStamina -= damage
         }
 
