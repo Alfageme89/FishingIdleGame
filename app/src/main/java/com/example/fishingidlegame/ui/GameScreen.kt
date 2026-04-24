@@ -33,6 +33,8 @@ import com.example.fishingidlegame.config.*
 import com.example.fishingidlegame.model.*
 import com.example.fishingidlegame.viewmodel.FishingViewModel
 import com.example.fishingidlegame.viewmodel.formatPoints
+import androidx.compose.ui.res.painterResource
+import com.example.fishingidlegame.R
 import kotlin.math.roundToInt
 
 @Composable
@@ -117,8 +119,8 @@ fun GameScreen(viewModel: FishingViewModel) {
         if (state.gamePhase == "MENU") MainMenuUI(state, viewModel)
 
         // 4. Fases Especiales del Boss
-        if (state.gamePhase == "BOSS_WARNING") BossWarningOverlay(state)
-        if (state.gamePhase == "BOSS_FIGHT") BossFightUI(state)
+        if (state.gamePhase == "BOSS_WARNING") BossWarningOverlay(state, state.currentBiomeIndex)
+        if (state.gamePhase == "BOSS_FIGHT") BossFightUI(state, state.currentBiomeIndex)
 
         // 5. Ventanas Modales
         if (state.showCollection) CollectionOverlay(state, onFishClick = { selectedFishForDetail = it }, onClose = { viewModel.toggleCollection(false) })
@@ -303,8 +305,21 @@ fun ResetConfirmOverlay(onConfirm: () -> Unit, onCancel: () -> Unit) {
 }
 
 @Composable
-fun BossWarningOverlay(state: GameState) {
-    Box(modifier = Modifier.fillMaxSize().background(Color.Red.copy(0.4f)), contentAlignment = Alignment.Center) {
+fun BossWarningOverlay(state: GameState, biomeIndex: Int) {
+    val bossImageRes = when (biomeIndex % 3) {
+        0 -> R.drawable.boss1
+        1 -> R.drawable.boss2
+        else -> R.drawable.boss3
+    }
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Image(
+            painter = painterResource(id = bossImageRes),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            alpha = 0.85f
+        )
+        Box(modifier = Modifier.fillMaxSize().background(Color.Red.copy(0.35f)))
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("¡PREPÁRATE!", color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Black)
             Text("EL GUARDIÁN ESTÁ AQUÍ", color = Color.White, fontSize = 20.sp)
@@ -315,35 +330,50 @@ fun BossWarningOverlay(state: GameState) {
 }
 
 @Composable
-fun BossFightUI(state: GameState) {
-    Column(modifier = Modifier.fillMaxSize().padding(top = 100.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("LUCHA POR TU VIDA", color = Color.Red, fontWeight = FontWeight.Black, fontSize = 32.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        LinearProgressIndicator(progress = state.bossHealth / state.bossMaxHealth, modifier = Modifier.width(300.dp).height(12.dp).clip(RoundedCornerShape(6.dp)), color = Color.Red, trackColor = Color.White.copy(0.1f))
-        
-        Spacer(modifier = Modifier.height(60.dp))
-        
-        Box(modifier = Modifier.width(320.dp).height(50.dp).background(Color.Black.copy(0.6f), RoundedCornerShape(25.dp)).border(2.dp, Color.White.copy(0.2f), RoundedCornerShape(25.dp))) {
-            val safeZoneWidth = 0.25f 
-            val safeStart = (state.bossSafeZonePos / 100f) - (safeZoneWidth / 2f)
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(safeZoneWidth)
-                    .offset(x = (320 * safeStart.coerceIn(0f, 1f - safeZoneWidth)).dp)
-                    .background(Color.Green.copy(0.4f))
-            )
-            
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(4.dp)
-                    .offset(x = (320 * (state.bossTension / 100f)).dp)
-                    .background(Color.White)
-                    .shadow(4.dp)
-            )
+fun BossFightUI(state: GameState, biomeIndex: Int) {
+    val bossImageRes = when (biomeIndex % 3) {
+        0 -> R.drawable.boss1
+        1 -> R.drawable.boss2
+        else -> R.drawable.boss3
+    }
+    Box(modifier = Modifier.fillMaxSize()) {
+        Image(
+            painter = painterResource(id = bossImageRes),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            alpha = 0.75f
+        )
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.45f)))
+        Column(modifier = Modifier.fillMaxSize().padding(top = 100.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("LUCHA POR TU VIDA", color = Color.Red, fontWeight = FontWeight.Black, fontSize = 32.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            LinearProgressIndicator(progress = state.bossHealth / state.bossMaxHealth, modifier = Modifier.width(300.dp).height(12.dp).clip(RoundedCornerShape(6.dp)), color = Color.Red, trackColor = Color.White.copy(0.1f))
+
+            Spacer(modifier = Modifier.height(60.dp))
+
+            Box(modifier = Modifier.width(320.dp).height(50.dp).background(Color.Black.copy(0.6f), RoundedCornerShape(25.dp)).border(2.dp, Color.White.copy(0.2f), RoundedCornerShape(25.dp))) {
+                val safeZoneWidth = 0.25f
+                val safeStart = (state.bossSafeZonePos / 100f) - (safeZoneWidth / 2f)
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(safeZoneWidth)
+                        .offset(x = (320 * safeStart.coerceIn(0f, 1f - safeZoneWidth)).dp)
+                        .background(Color.Green.copy(0.4f))
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(4.dp)
+                        .offset(x = (320 * (state.bossTension / 100f)).dp)
+                        .background(Color.White)
+                        .shadow(4.dp)
+                )
+            }
+            Text("¡MANTENTE EN EL ÁREA VERDE!", color = Color.White.copy(0.8f), fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
         }
-        Text("¡MANTENTE EN EL ÁREA VERDE!", color = Color.White.copy(0.8f), fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
     }
 }
 

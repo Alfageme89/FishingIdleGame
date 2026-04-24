@@ -4,12 +4,12 @@
         "source": "com.example.fishingidlegame.app-main-44:/mipmap-xxhdpi/ic_launcher.webp"
     },
     {
-        "merged": "C:\\Users\\David\\.gradle\\daemon\\9.0-milestone-1\\com.example.fishingidlegame.app-debug-42:\\xml_backup_rules.xml.flat",
-        "source": "C:\\Users\\David\\.gradle\\daemon\\9.0-milestone-1\\com.example.fishingidlegame.app-main-44:\\xml\\backup_rules.xml"
-    },
-    {
         "merged": "com.example.fishingidlegame.app-debug-42:/mipmap-xxxhdpi_ic_launcher.webp.flat",
         "source": "com.example.fishingidlegame.app-main-44:/mipmap-xxxhdpi/ic_launcher.webp"
+    },
+    {
+        "merged": "com.example.fishingidlegame.app-debug-42:/drawable_boss2.png.flat",
+        "source": "com.example.fishingidlegame.app-main-44:/drawable/boss2.png"
     },
     {
         "merged": "com.example.fishingidlegame.app-debug-42:/mipmap-hdpi_ic_launcher_round.webp.flat",
@@ -20,8 +20,8 @@
         "source": "com.example.fishingidlegame.app-main-44:/mipmap-xhdpi/ic_launcher.webp"
     },
     {
-        "merged": "C:\\Users\\David\\.gradle\\daemon\\9.0-milestone-1\\com.example.fishingidlegame.app-debug-42:\\mipmap-anydpi-v26_ic_launcher_round.xml.flat",
-        "source": "C:\\Users\\David\\.gradle\\daemon\\9.0-milestone-1\\com.example.fishingidlegame.app-main-44:\\mipmap-anydpi-v26\\ic_launcher_round.xml"
+        "merged": "com.example.fishingidlegame.app-debug-42:/drawable_boss3.png.flat",
+        "source": "com.example.fishingidlegame.app-main-44:/drawable/boss3.png"
     },
     {
         "merged": "com.example.fishingidlegame.app-debug-42:/mipmap-xxhdpi_ic_launcher_round.webp.flat",
@@ -60,10 +60,6 @@
         "source": "com.example.fishingidlegame.app-main-44:/xml/data_extraction_rules.xml"
     },
     {
-        "merged": "C:\\Users\\David\\.gradle\\daemon\\9.0-milestone-1\\com.example.fishingidlegame.app-debug-42:\\xml_data_extraction_rules.xml.flat",
-        "source": "C:\\Users\\David\\.gradle\\daemon\\9.0-milestone-1\\com.example.fishingidlegame.app-main-44:\\xml\\data_extraction_rules.xml"
-    },
-    {
         "merged": "com.example.fishingidlegame.app-debug-42:/mipmap-xhdpi_ic_launcher_round.webp.flat",
         "source": "com.example.fishingidlegame.app-main-44:/mipmap-xhdpi/ic_launcher_round.webp"
     },
@@ -74,5 +70,9 @@
     {
         "merged": "com.example.fishingidlegame.app-debug-42:/mipmap-hdpi_ic_launcher.webp.flat",
         "source": "com.example.fishingidlegame.app-main-44:/mipmap-hdpi/ic_launcher.webp"
+    },
+    {
+        "merged": "com.example.fishingidlegame.app-debug-42:/drawable_boss1.png.flat",
+        "source": "com.example.fishingidlegame.app-main-44:/drawable/boss1.png"
     }
 ]

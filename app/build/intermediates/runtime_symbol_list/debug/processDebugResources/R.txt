@@ -52,6 +52,9 @@ int dimen notification_small_icon_size_as_large 0x7f030012
 int dimen notification_subtext_size 0x7f030013
 int dimen notification_top_pad 0x7f030014
 int dimen notification_top_pad_large_text 0x7f030015
+int drawable boss1 0x7f040016
+int drawable boss2 0x7f040017
+int drawable boss3 0x7f040018
 int drawable ic_call_answer 0x7f040001
 int drawable ic_call_answer_low 0x7f040002
 int drawable ic_call_answer_video 0x7f040003
