@@ -38,7 +38,7 @@ import com.example.fishingidlegame.R
 import kotlin.math.roundToInt
 
 @Composable
-fun GameScreen(viewModel: FishingViewModel) {
+fun GameScreen(viewModel: FishingViewModel, onLogout: () -> Unit = {}) {
     val state by viewModel.state.collectAsState()
     val fishList by viewModel.fishList.collectAsState()
     val powerUps by viewModel.powerUps.collectAsState()
@@ -127,7 +127,7 @@ fun GameScreen(viewModel: FishingViewModel) {
         if (state.showMapSelector) MapSelectorOverlay(state, onSelect = { viewModel.changeBiome(it) }, onClose = { viewModel.toggleMapSelector(false) })
         if (state.showPrestigeConfirm) PrestigeConfirmOverlay(state, onConfirm = { viewModel.confirmPrestige() }, onCancel = { viewModel.closePrestigeConfirm() })
         if (state.showShop) ShopOverlay(state, onClose = { viewModel.toggleShop(false) }, onBuy = { type, cost -> viewModel.buyConsumable(type, cost) })
-        if (state.showSettings) SettingsOverlay(state, viewModel)
+        if (state.showSettings) SettingsOverlay(state, viewModel, onLogout = onLogout)
         if (state.showResetConfirm) ResetConfirmOverlay(onConfirm = { viewModel.confirmReset() }, onCancel = { viewModel.cancelReset() })
         
         selectedFishForDetail?.let { FishDetailOverlay(it, state) { selectedFishForDetail = null } }
@@ -241,7 +241,7 @@ fun ShopOverlay(state: GameState, onClose: () -> Unit, onBuy: (PowerUpType, Long
 }
 
 @Composable
-fun SettingsOverlay(state: GameState, viewModel: FishingViewModel) {
+fun SettingsOverlay(state: GameState, viewModel: FishingViewModel, onLogout: () -> Unit = {}) {
     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.85f)).clickable { viewModel.toggleSettings(false) }, contentAlignment = Alignment.Center) {
         Card(
             modifier = Modifier.fillMaxWidth(0.85f).clickable(enabled = false) { },
@@ -251,17 +251,29 @@ fun SettingsOverlay(state: GameState, viewModel: FishingViewModel) {
             Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("CONFIGURACIÓN", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
                 Spacer(modifier = Modifier.height(32.dp))
-                
+
                 SettingsToggle("Música", state.musicEnabled) { viewModel.toggleMusic() }
                 SettingsToggle("Efectos SFX", state.sfxEnabled) { viewModel.toggleSFX() }
-                
+
                 Spacer(modifier = Modifier.height(40.dp))
-                
+
                 TextButton(onClick = { viewModel.requestReset() }) {
                     Text("BORRAR PROGRESO", color = Color.Red.copy(0.7f), fontSize = 12.sp)
                 }
-                
-                Spacer(modifier = Modifier.height(16.dp))
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = onLogout,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3D0000))
+                ) {
+                    Icon(Icons.Default.Logout, contentDescription = null, tint = Color(0xFFFF6B6B), modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("CERRAR SESIÓN", color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
                 Button(onClick = { viewModel.toggleSettings(false) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(0.1f))) {
                     Text("CERRAR", color = Color.White)
                 }

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"c:\\\\Users\\\\David\\\\Documents\\\\tfg\\\\Pr\\\\FishingIdleGame\" ls-files)",
+      "Bash(git -C \"c:\\\\Users\\\\David\\\\Documents\\\\tfg\\\\Pr\\\\FishingIdleGame\" rm -r --cached .gradle/ app/build/)",
+      "Bash(git -C \"c:\\\\Users\\\\David\\\\Documents\\\\tfg\\\\Pr\\\\FishingIdleGame\" status --short)"
+    ]
+  }
+}

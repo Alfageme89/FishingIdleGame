@@ -54,6 +54,11 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         }
     }
 
+    fun switchUser(email: String) {
+        repository.setUser(email)
+        loadUserData()
+    }
+
     fun requestPrestige() {
         val currentState = _state.value
         val currentPrestigeLevel = ((currentState.prestigeMultiplier - 1f) / 0.15f).roundToInt()
@@ -104,27 +109,34 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
     private fun spawnWorldElements() {
         val currentState = _state.value
         val currentMaxY = surfaceY + (activeMaxDepth * GameConfig.M2PX_BASE)
-        val numFish = ((activeMaxDepth / 100f) * GameConfig.NUM_FISH_PER_100M).toInt().coerceAtLeast(25)
+
+        // Section-based spawning: always FISH_PER_SECTION fish per 50m to keep density constant at any depth
+        val sectionM = 50f
+        val fishPerSection = 20
+        val numSections = (activeMaxDepth / sectionM).toInt().coerceAtLeast(1)
+        val totalFish = (numSections * fishPerSection).coerceIn(40, 600)
 
         val biomeLimit = surfaceY + ((currentState.currentBiomeIndex + 1) * 300 * GameConfig.M2PX_BASE)
         val bossNoFishZone = 500f
 
-        _fishList.update { 
-            List(numFish) { 
-                val fish = createRandomFish(activeMaxDepth)
+        _fishList.update {
+            (0 until totalFish).map { i ->
+                val section = i % numSections
+                val secMinY = surfaceY + section * sectionM * GameConfig.M2PX_BASE
+                val secMaxY = secMinY + sectionM * GameConfig.M2PX_BASE
+                val fish = createRandomFish(activeMaxDepth, secMinY, secMaxY)
                 if (fish.y > biomeLimit - bossNoFishZone) {
-                    fish.y -= bossNoFishZone + (50..200).random().toFloat()
-                }
-                fish
-            } 
+                    fish.copy(y = fish.y - bossNoFishZone - (50..200).random().toFloat())
+                } else fish
+            }
         }
         _powerUps.update { List(GameConfig.NUM_POWERUPS) { createRandomPowerUp(currentMaxY) } }
     }
 
-    private fun createRandomFish(maxMeters: Float): Fish {
+    private fun createRandomFish(maxMeters: Float, secMinY: Float? = null, secMaxY: Float? = null): Fish {
         val availableTypes = GameConfig.fishTypes.values.filter { it.minSpawnDepth <= maxMeters }
         val typeConfig = availableTypes.randomOrNull() ?: GameConfig.fishTypes.values.first()
-        
+
         val roll = Math.random() * baitPower
         val tier = when {
             roll > 1.8 -> FishTier.ELDER
@@ -137,14 +149,16 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         val finalKg = typeConfig.baseKg * tier.weightMult * (if(isRare) 2.2f else 1f)
         val finalPts = (typeConfig.basePoints * tier.scoreMult * _state.value.prestigeMultiplier * (if(isRare) 6 else 1)).toInt()
 
-        val spawnMinY = surfaceY + (typeConfig.minSpawnDepth * GameConfig.M2PX_BASE)
-        val spawnMaxY = surfaceY + (maxMeters * GameConfig.M2PX_BASE)
+        val spawnMinY = secMinY ?: (surfaceY + (typeConfig.minSpawnDepth * GameConfig.M2PX_BASE))
+        val spawnMaxY = secMaxY ?: (surfaceY + (maxMeters * GameConfig.M2PX_BASE))
+        val actualMin = spawnMinY.toInt()
+        val actualMax = spawnMaxY.toInt().coerceAtLeast(actualMin + 1)
 
         return Fish(
             type = typeConfig,
             tier = tier,
             x = (50..(worldWidth.toInt() - 50)).random().toFloat(),
-            y = (spawnMinY.toInt()..spawnMaxY.toInt()).random().toFloat(),
+            y = (actualMin..actualMax).random().toFloat(),
             vx = ((-250..250).random() / 100f),
             vy = ((-80..80).random() / 100f),
             kg = finalKg,
