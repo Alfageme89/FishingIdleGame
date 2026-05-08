@@ -16,15 +16,11 @@ class GameRepository(context: Context) {
     private var currentUser = "anonimo"
     private var currentUsername = "anonimo"
 
-    fun setUser(email: String) {
+    fun setUser(email: String, firebaseId: String, username: String) {
         userPrefix = email.replace("@", "_at_")
             .replace(".", "_")
             .replace("+", "_")
-
-        currentUser = email
-    }
-
-    fun setUsername(username: String) {
+        currentUser = firebaseId
         currentUsername = username
     }
 

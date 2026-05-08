@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 val activeUser = userRepository.getActiveUser()
                 if (activeUser != null) {
-                    viewModel.switchUser(activeUser.email)
+                    viewModel.switchUser(activeUser.email, activeUser.firebaseId, activeUser.username)
                     loggedInUsername = activeUser.username
                 }
                 sessionChecked = true
@@ -53,9 +53,9 @@ class MainActivity : ComponentActivity() {
                         loggedInUsername == null -> {
                             LoginScreen(
                                 userRepository = userRepository,
-                                onLoginSuccess = { email, username ->
-                                    viewModel.switchUser(email)
-                                    loggedInUsername = username
+                                onLoginSuccess = { user ->
+                                    viewModel.switchUser(user.email, user.firebaseId, user.username)
+                                    loggedInUsername = user.username
                                 }
                             )
                         }

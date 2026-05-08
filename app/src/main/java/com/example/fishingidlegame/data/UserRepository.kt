@@ -2,76 +2,96 @@ package com.example.fishingidlegame.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import java.security.MessageDigest
 
-
-data class User(val email: String, val username: String)
+// email is used as Firestore document ID (plain, not hashed). Password is hashed.
+data class User(val email: String, val firebaseId: String, val username: String)
 
 class UserRepository(context: Context) {
-    private val firebaseRepository = FirebaseRepository()
+    private val db = FirebaseFirestore.getInstance()
     private val firebaseManager = FirebaseManager()
     private val prefs: SharedPreferences =
-        context.getSharedPreferences("fishing_users", Context.MODE_PRIVATE)
+        context.getSharedPreferences("fishing_session", Context.MODE_PRIVATE)
 
-    private fun hash(password: String): String {
-        val bytes = MessageDigest.getInstance("SHA-256").digest(password.toByteArray())
+    private fun sha256(input: String): String {
+        val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray())
         return bytes.joinToString("") { "%02x".format(it) }
     }
 
-    fun register(email: String, username: String, password: String): Result<User> {
-        val key = email.trim().lowercase()
-        val trimmedUsername = username.trim()
-        val emails = prefs.getStringSet("registered_emails", emptySet()) ?: emptySet()
-        val usernames = prefs.getStringSet("registered_usernames", emptySet()) ?: emptySet()
+    // doc ID in Firestore = sanitized email (replace . with _)
+    private fun emailToDocId(email: String) = email.replace(".", "_")
 
-        if (emails.contains(key)) {
-            return Result.failure(Exception("Este correo ya está registrado"))
-        }
-        if (usernames.any { it.equals(trimmedUsername, ignoreCase = true) }) {
-            return Result.failure(Exception("Ese nombre de usuario ya está en uso"))
+    suspend fun register(email: String, username: String, password: String): Result<User> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val key = email.trim().lowercase()
+                val docId = emailToDocId(key)
+                val passwordHash = sha256(password)
+                val trimmedUsername = username.trim()
+
+                val existing = db.collection("accounts").document(docId).get().await()
+                if (existing.exists()) throw Exception("Este correo ya está registrado")
+
+                val usernameTaken = db.collection("accounts")
+                    .whereEqualTo("usernameLower", trimmedUsername.lowercase())
+                    .get().await()
+                if (!usernameTaken.isEmpty) throw Exception("Ese nombre de usuario ya está en uso")
+
+                val data = hashMapOf(
+                    "email" to key,
+                    "passwordHash" to passwordHash,
+                    "username" to trimmedUsername,
+                    "usernameLower" to trimmedUsername.lowercase()
+                )
+                db.collection("accounts").document(docId).set(data).await()
+
+                firebaseManager.inicializarUsuario(docId, trimmedUsername)
+
+                saveSession(key, docId, trimmedUsername)
+                User(key, docId, trimmedUsername)
+            }
         }
 
-        prefs.edit().apply {
-            putStringSet("registered_emails", emails + key)
-            putStringSet("registered_usernames", usernames + trimmedUsername.lowercase())
-            putString("user_${key}_username", trimmedUsername)
-            putString("user_${key}_hash", hash(password))
-            apply()
-        }
-        saveActiveUser(key)
+    suspend fun login(email: String, password: String): Result<User> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val key = email.trim().lowercase()
+                val docId = emailToDocId(key)
+                val passwordHash = sha256(password)
 
-        firebaseRepository.saveUser(key, trimmedUsername)
-        firebaseManager.inicializarUsuario(key, trimmedUsername)
+                val doc = db.collection("accounts").document(docId).get().await()
+                if (!doc.exists()) throw Exception("Correo no encontrado")
 
-        return Result.success(User(key, trimmedUsername))
-    }
+                val storedHash = doc.getString("passwordHash") ?: ""
+                if (passwordHash != storedHash) throw Exception("Contraseña incorrecta")
 
-    fun login(email: String, password: String): Result<User> {
-        val key = email.trim().lowercase()
-        val emails = prefs.getStringSet("registered_emails", emptySet()) ?: emptySet()
-        if (!emails.contains(key)) {
-            return Result.failure(Exception("Correo no encontrado"))
+                val username = doc.getString("username") ?: key
+
+                saveSession(key, docId, username)
+                User(key, docId, username)
+            }
         }
-        val stored = prefs.getString("user_${key}_hash", "") ?: ""
-        if (hash(password) != stored) {
-            return Result.failure(Exception("Contraseña incorrecta"))
-        }
-        val username = prefs.getString("user_${key}_username", key) ?: key
-        saveActiveUser(key)
-        return Result.success(User(key, username))
-    }
 
     fun getActiveUser(): User? {
-        val key = prefs.getString("active_user", null) ?: return null
-        val username = prefs.getString("user_${key}_username", null) ?: return null
-        return User(key, username)
+        val key = prefs.getString("session_email", null) ?: return null
+        val docId = prefs.getString("session_firebase_id", null) ?: return null
+        val username = prefs.getString("session_username", null) ?: return null
+        return User(key, docId, username)
     }
 
     fun logout() {
-        prefs.edit().remove("active_user").apply()
+        prefs.edit().clear().apply()
     }
 
-    private fun saveActiveUser(key: String) {
-        prefs.edit().putString("active_user", key).apply()
+    private fun saveSession(email: String, docId: String, username: String) {
+        prefs.edit()
+            .putString("session_email", email)
+            .putString("session_firebase_id", docId)
+            .putString("session_username", username)
+            .apply()
     }
 }

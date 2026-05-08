@@ -14,19 +14,19 @@ object GameConfig {
     const val M2PX_BASE = 25f 
 
     val biomes = listOf(
-        Biome("Lago Sereno", "Aguas tranquilas ideales para principiantes.", Color(0xFF1e5fa8), Color(0xFF1898a8), Color(0xFF061220), 0f, listOf("Trucha", "Carpa", "Lucio"), "Siluro Gigante"),
-        Biome("Arrecife Coral", "Un festival de colores y biodiversidad marina.", Color(0xFF5ba8d8), Color(0xFF4ecdc4), Color(0xFF123456), 100f, listOf("Pez Payaso", "Salmón", "Piraña", "Pez Globo"), "Gran Tiburón Blanco"),
-        Biome("Océano Profundo", "Donde la luz empieza a escasear y los gigantes habitan.", Color(0xFF0D1B2A), Color(0xFF1B263B), Color(0xFF010406), 300f, listOf("Tiburón", "Pez Espada", "Rape", "Manta Raya"), "Megalodón"),
-        Biome("Abismo Abisal", "Presiones extremas y criaturas de pesadilla.", Color(0xFF000000), Color(0xFF010406), Color(0xFF000000), 800f, listOf("Calamar Gig.", "Dunkleosteus", "Anguila Eléctrica"), "Leviathán"),
-        Biome("Zona Volcánica", "El mismísimo infierno bajo el mar.", Color(0xFF2B1010), Color(0xFF440000), Color(0xFF1A0000), 2000f, listOf("Pez Magma", "Dragón Marino", "Kraken"), "EL KRAKEN")
+        Biome("Lago Sereno",    "Aguas tranquilas ideales para principiantes.",             Color(0xFF1e5fa8), Color(0xFF1898a8), Color(0xFF061220), 0f,    listOf("Trucha", "Carpa", "Lucio"),                          "Kraken"),
+        Biome("Arrecife Coral", "Un festival de colores y biodiversidad marina.",           Color(0xFF5ba8d8), Color(0xFF4ecdc4), Color(0xFF123456), 100f,  listOf("Pez Payaso", "Salmón", "Piraña", "Pez Globo"),        "Cangrejo"),
+        Biome("Océano Profundo","Donde la luz empieza a escasear y los gigantes habitan.", Color(0xFF0D1B2A), Color(0xFF1B263B), Color(0xFF010406), 300f,  listOf("Tiburón", "Pez Espada", "Rape", "Manta Raya"),         "Cangrejo Mecánico"),
+        Biome("Abismo Abisal",  "Presiones extremas y criaturas de pesadilla.",            Color(0xFF000000), Color(0xFF010406), Color(0xFF000000), 800f,  listOf("Calamar Gig.", "Dunkleosteus", "Anguila Eléctrica"),   "Verdadero Kraken"),
+        Biome("Zona Volcánica", "El mismísimo infierno bajo el mar.",                      Color(0xFF2B1010), Color(0xFF440000), Color(0xFF1A0000), 2000f, listOf("Pez Magma", "Dragón Marino", "KRAKEN"),                "Rey Cangrejo")
     )
 
     val bosses = mapOf(
-        "Siluro Gigante" to Boss("Siluro Gigante", Color(0xFF4A4A4A), 150f, 100f, 500L),
-        "Gran Tiburón Blanco" to Boss("Gran Tiburón Blanco", Color(0xFF6B8FA8), 500f, 120f, 2500L),
-        "Megalodón" to Boss("Megalodón", Color(0xFF2F4F4F), 1500f, 180f, 12000L),
-        "Leviathán" to Boss("Leviathán", Color(0xFF4B0082), 5000f, 250f, 60000L),
-        "EL KRAKEN" to Boss("EL KRAKEN", Color(0xFF800000), 20000f, 400f, 500000L)
+        "Kraken"            to Boss("Kraken",            Color(0xFF1A3A5C), 200f,    110f, 600L,    triggerDepthM = 120f),
+        "Cangrejo"          to Boss("Cangrejo",          Color(0xFFB84A00), 800f,    130f, 3500L,   triggerDepthM = 300f),
+        "Cangrejo Mecánico" to Boss("Cangrejo Mecánico", Color(0xFF607080), 3000f,   190f, 18000L,  triggerDepthM = 500f),
+        "Verdadero Kraken"  to Boss("Verdadero Kraken",  Color(0xFF0A1F40), 2700f,   280f, 90000L,  triggerDepthM = 750f),
+        "Rey Cangrejo"      to Boss("Rey Cangrejo",      Color(0xFF8B0000), 4200f,   450f, 800000L, triggerDepthM = 1000f)
     )
 
     val fishTypes = mapOf(
@@ -54,24 +54,24 @@ object GameConfig {
     )
 
     val upgrades = mapOf(
-        "depth" to UpgradeConfig("depth", "Profundidad", "🌊", "m", 
-            listOf(100, 500, 2500, 10000, 50000, 200000, 1000000),
-            listOf(40f, 100f, 250f, 600f, 1200f, 2500f, 5000f, 10000f)),
-        "weight" to UpgradeConfig("weight", "Capacidad", "⚖️", "kg", 
-            listOf(150, 1000, 5000, 25000, 120000, 600000),
-            listOf(5f, 12f, 30f, 80f, 200f, 500f, 1500f)),
+        "depth" to UpgradeConfig("depth", "Profundidad", "🌊", "m",
+            listOf(100, 600, 3000, 12000, 60000, 250000, 1200000),
+            listOf(80f, 130f, 250f, 600f, 1200f, 2500f, 5000f, 10000f)),
+        "weight" to UpgradeConfig("weight", "Capacidad", "⚖️", "kg",
+            listOf(80, 500, 2500, 12000, 60000, 300000, 1500000, 8000000),
+            listOf(30f, 80f, 200f, 500f, 1500f, 4000f, 12000f, 40000f, 120000f)),
         "steering" to UpgradeConfig("steering", "Giro", "☸️", "x",
-            listOf(300, 3000, 20000, 150000),
-            listOf(0.04f, 0.06f, 0.09f, 0.14f, 0.22f)),
+            listOf(200, 2000, 20000, 200000),
+            listOf(0.04f, 0.08f, 0.13f, 0.20f, 0.32f)),
         "turbo" to UpgradeConfig("turbo", "Turbo", "🚀", "x",
-            listOf(500, 5000, 50000, 500000),
-            listOf(1.0f, 1.2f, 1.5f, 2.0f, 3.0f)),
+            listOf(250, 2500, 25000, 250000),
+            listOf(1.0f, 1.5f, 2.2f, 3.5f, 5.0f)),
         "boss" to UpgradeConfig("boss", "Estabilidad", "⚓", "x",
-            listOf(1000, 10000, 100000),
-            listOf(1.0f, 1.15f, 1.35f, 1.6f)),
+            listOf(600, 6000, 60000, 600000),
+            listOf(1.0f, 1.3f, 1.7f, 2.3f, 3.2f)),
         "bait" to UpgradeConfig("bait", "Cebo", "🪱", "x",
-            listOf(2000, 20000, 200000),
-            listOf(1.0f, 1.25f, 1.6f, 2.2f))
+            listOf(1200, 10000, 80000, 600000),
+            listOf(1.0f, 1.6f, 2.5f, 4.0f, 6.5f))
     )
 }
 

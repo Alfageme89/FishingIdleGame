@@ -125,8 +125,8 @@ fun GameScreen(viewModel: FishingViewModel, onLogout: () -> Unit = {}) {
         // 5. Ventanas Modales
         if (state.showCollection) CollectionOverlay(state, viewModel, onFishClick = { selectedFishForDetail = it }, onClose = { viewModel.toggleCollection(false) })
         if (state.showMapSelector) MapSelectorOverlay(state, onSelect = { viewModel.changeBiome(it) }, onClose = { viewModel.toggleMapSelector(false) })
-        if (state.showPrestigeConfirm) PrestigeConfirmOverlay(state, onConfirm = { viewModel.confirmPrestige() }, onCancel = { viewModel.closePrestigeConfirm() })
-        if (state.showShop) ShopOverlay(state, onClose = { viewModel.toggleShop(false) }, onBuy = { type, cost -> viewModel.buyConsumable(type, cost) })
+        if (state.showPrestigeConfirm) PrestigeConfirmOverlay(state, viewModel, onConfirm = { viewModel.confirmPrestige() }, onCancel = { viewModel.closePrestigeConfirm() })
+        if (state.showShop) ShopOverlay(state, onClose = { viewModel.toggleShop(false) }, onBuy = { type: PowerUpType, cost: Long -> viewModel.buyConsumable(type, cost) })
         if (state.showSettings) SettingsOverlay(state, viewModel, onLogout = onLogout)
         if (state.showResetConfirm) ResetConfirmOverlay(onConfirm = { viewModel.confirmReset() }, onCancel = { viewModel.cancelReset() })
         
@@ -204,33 +204,47 @@ fun ShopOverlay(state: GameState, onClose: () -> Unit, onBuy: (PowerUpType, Long
                 }
                 Spacer(modifier = Modifier.height(24.dp))
                 
+                data class ShopItem(val type: PowerUpType, val icon: String, val name: String, val desc: String, val baseCost: Long)
                 val items = listOf(
-                    Triple(PowerUpType.SPEED, "Propulsor Nitro", 500L),
-                    Triple(PowerUpType.MAGNET, "Súper Imán", 800L),
-                    Triple(PowerUpType.SHIELD, "Escudo de Red", 1200L),
-                    Triple(PowerUpType.GOLD, "Anzuelo Dorado", 2000L)
+                    ShopItem(PowerUpType.SPEED,  "🚀", "Propulsor Nitro",  "Velocidad x2 durante 15s (se apila con turbo)", 500L),
+                    ShopItem(PowerUpType.MAGNET, "🧲", "Súper Imán",       "Radio de captura x3 durante 15s",               800L),
+                    ShopItem(PowerUpType.SHIELD, "🛡️", "Escudo de Red",    "Sin límite de peso durante 15s",                1200L),
+                    ShopItem(PowerUpType.GOLD,   "💰", "Anzuelo Dorado",   "Te devuelve el 25% extra de lo que pagas",      2000L)
                 )
 
-                items.forEach { (type, name, cost) ->
+                items.forEach { item ->
+                    val mult = state.shopPriceMultipliers[item.type.name] ?: 1f
+                    val actualCost = (item.baseCost * mult).toLong()
+                    val canAfford = state.score >= actualCost
+                    val active = item.type != PowerUpType.GOLD &&
+                        (state.activePowerUps[item.type] ?: 0L) > System.currentTimeMillis()
                     Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onBuy(type, cost) },
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF16213E))
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                            .clickable(enabled = canAfford && !active) { onBuy(item.type, item.baseCost) },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (active) Color(0xFF0D2B0D) else Color(0xFF16213E)
+                        ),
+                        border = if (active) BorderStroke(1.dp, Color.Green.copy(0.6f)) else null
                     ) {
                         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            val icon = when(type) {
-                                PowerUpType.SPEED -> "🚀"
-                                PowerUpType.MAGNET -> "🧲"
-                                PowerUpType.SHIELD -> "🛡️"
-                                PowerUpType.GOLD -> "💰"
-                            }
-                            Text(icon, fontSize = 32.sp)
+                            Text(item.icon, fontSize = 32.sp)
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(name, color = Color.White, fontWeight = FontWeight.Bold)
-                                Text("Consumible 12s", color = Color.White.copy(0.5f), fontSize = 12.sp)
+                                Text(item.name, color = if (active) Color.Green else Color.White, fontWeight = FontWeight.Bold)
+                                Text(if (active) "¡ACTIVO!" else item.desc,
+                                    color = if (active) Color.Green.copy(0.8f) else Color.White.copy(0.5f),
+                                    fontSize = 12.sp)
+                                if (mult > 1f) Text("Precio inflado x${String.format("%.1f", mult)}", color = Color(0xFFFF8C00), fontSize = 10.sp)
                             }
-                            Button(onClick = { onBuy(type, cost) }, enabled = state.score >= cost, colors = ButtonDefaults.buttonColors(containerColor = Color.Cyan)) {
-                                Text("${formatPoints(cost)}", color = Color.Black, fontWeight = FontWeight.Black)
+                            Button(
+                                onClick = { onBuy(item.type, item.baseCost) },
+                                enabled = canAfford && !active,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (active) Color.Gray else Color.Cyan,
+                                    disabledContainerColor = Color.Gray.copy(0.4f)
+                                )
+                            ) {
+                                Text(formatPoints(actualCost), color = Color.Black, fontWeight = FontWeight.Black)
                             }
                         }
                     }
@@ -390,7 +404,9 @@ fun BossFightUI(state: GameState, biomeIndex: Int) {
 }
 
 @Composable
-fun PrestigeConfirmOverlay(state: GameState, onConfirm: () -> Unit, onCancel: () -> Unit) {
+fun PrestigeConfirmOverlay(state: GameState, viewModel: FishingViewModel, onConfirm: () -> Unit, onCancel: () -> Unit) {
+    val minScore = viewModel.prestigeMinScore
+    val canPrestige = state.score >= minScore
     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.8f)).clickable { onCancel() }, contentAlignment = Alignment.Center) {
         Card(
             modifier = Modifier.fillMaxWidth(0.85f).clickable(enabled = false) { },
@@ -403,10 +419,19 @@ fun PrestigeConfirmOverlay(state: GameState, onConfirm: () -> Unit, onCancel: ()
                 Text("NUEVO CICLO", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "Reiniciarás tu puntuación y equipo, pero ganarás un bono masivo de puntos permanente.",
+                    "Reiniciarás tu puntuación y equipo, pero ganarás un bono masivo de puntos permanente. Los precios de la tienda se reinician.",
                     color = Color.White.copy(0.7f), textAlign = TextAlign.Center, fontSize = 14.sp
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                val scoreColor = if (canPrestige) Color(0xFF2ECC71) else Color(0xFFE74C3C)
+                Surface(color = scoreColor.copy(0.15f), shape = RoundedCornerShape(12.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("MÍNIMO REQUERIDO", color = scoreColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(formatPoints(minScore) + " pts", color = scoreColor, fontWeight = FontWeight.Black, fontSize = 16.sp)
+                        if (!canPrestige) Text("Tienes ${formatPoints(state.score)} pts", color = Color.White.copy(0.5f), fontSize = 11.sp)
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("BONO ACTUAL", color = Color.Gray, fontSize = 10.sp)
@@ -415,11 +440,11 @@ fun PrestigeConfirmOverlay(state: GameState, onConfirm: () -> Unit, onCancel: ()
                     Icon(Icons.Default.ArrowForward, null, tint = Color.Cyan)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("NUEVO BONO", color = Color.Cyan, fontSize = 10.sp)
-                        Text("x${String.format("%.2f", state.prestigeMultiplier + 0.15f)}", color = Color.Cyan, fontWeight = FontWeight.Black)
+                        Text("x${String.format("%.2f", state.prestigeMultiplier * 1.05f)}", color = Color.Cyan, fontWeight = FontWeight.Black)
                     }
                 }
                 Spacer(modifier = Modifier.height(32.dp))
-                Button(onClick = onConfirm, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color.Magenta)) {
+                Button(onClick = onConfirm, modifier = Modifier.fillMaxWidth(), enabled = canPrestige, colors = ButtonDefaults.buttonColors(containerColor = Color.Magenta, disabledContainerColor = Color.Gray.copy(0.4f))) {
                     Text("REINICIAR Y MEJORAR", fontWeight = FontWeight.Black)
                 }
                 TextButton(onClick = onCancel) { Text("CONTINUAR PESCANDO", color = Color.White.copy(0.5f)) }
@@ -854,7 +879,7 @@ fun UpgradeCardSmall(upgrade: UpgradeConfig, level: Int, cost: Int, currentValue
 
 @Composable
 fun BoxScope.DepthMeter(state: GameState) {
-    val currentMeters = (state.hookY / GameConfig.M2PX_BASE).roundToInt()
+    val currentMeters = ((state.hookY - 400f).coerceAtLeast(0f) / GameConfig.M2PX_BASE).roundToInt()
     val maxMeters = (GameConfig.upgrades["depth"]?.values?.get(state.upgLevels["depth"] ?: 0) ?: 40f).toInt()
     Box(modifier = Modifier.fillMaxHeight().width(60.dp).padding(vertical = 120.dp).align(Alignment.CenterStart)) {
         Box(modifier = Modifier.fillMaxHeight().width(4.dp).background(Color.White.copy(0.1f)).align(Alignment.Center))

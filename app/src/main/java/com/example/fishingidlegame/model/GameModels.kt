@@ -19,7 +19,8 @@ data class Boss(
     val color: Color,
     val maxHealth: Float,
     val size: Float,
-    val reward: Long
+    val reward: Long,
+    val triggerDepthM: Float
 )
 
 data class FishType(
@@ -133,5 +134,6 @@ data class GameState(
     val musicEnabled: Boolean = true,
     val sfxEnabled: Boolean = true,
     
-    val activePowerUps: Map<PowerUpType, Long> = emptyMap()
+    val activePowerUps: Map<PowerUpType, Long> = emptyMap(),
+    val shopPriceMultipliers: Map<String, Float> = emptyMap()
 )

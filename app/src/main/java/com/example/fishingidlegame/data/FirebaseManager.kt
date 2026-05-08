@@ -42,18 +42,22 @@ class FirebaseManager {
         pez: String,
         peso: Float
     ) = withContext(Dispatchers.IO) {
-        val docId = "${userId}_$pez"
-        val datos = hashMapOf(
-            "userId" to userId,
-            "username" to username,
-            "pez" to pez,
-            "pesoMaximo" to peso.toDouble(),
-            "timestamp" to System.currentTimeMillis()
-        )
-        db.collection("pesosCompetitivos")
-            .document(docId)
-            .set(datos)
-            .await()
+        val docId = "${userId}_${pez.replace(" ", "_")}"
+        val ref = db.collection("pesosCompetitivos").document(docId)
+        runCatching {
+            val existing = ref.get().await()
+            val storedMax = existing.getDouble("pesoMaximo") ?: 0.0
+            if (peso.toDouble() > storedMax) {
+                val datos = hashMapOf(
+                    "userId" to userId,
+                    "username" to username,
+                    "pez" to pez,
+                    "pesoMaximo" to peso.toDouble(),
+                    "timestamp" to System.currentTimeMillis()
+                )
+                ref.set(datos).await()
+            }
+        }
     }
 
     suspend fun guardarProgresoCompleto(
@@ -156,23 +160,23 @@ class FirebaseManager {
         }.getOrElse { emptyList() }
     }
 
-    // Requiere índice compuesto en Firestore: pez ASC + pesoMaximo DESC
     suspend fun obtenerRankingPorPez(fishName: String): List<RankingPez> = withContext(Dispatchers.IO) {
         runCatching {
             db.collection("pesosCompetitivos")
                 .whereEqualTo("pez", fishName)
-                .orderBy("pesoMaximo", Query.Direction.DESCENDING)
-                .limit(10)
                 .get()
                 .await()
                 .documents
-                .map { doc ->
+                .mapNotNull { doc ->
+                    val peso = doc.getDouble("pesoMaximo") ?: return@mapNotNull null
                     RankingPez(
                         username = doc.getString("username") ?: "?",
                         pez = doc.getString("pez") ?: fishName,
-                        pesoMaximo = (doc.getDouble("pesoMaximo") ?: 0.0).toFloat()
+                        pesoMaximo = peso.toFloat()
                     )
                 }
+                .sortedByDescending { it.pesoMaximo }
+                .take(10)
         }.getOrElse { emptyList() }
     }
 }

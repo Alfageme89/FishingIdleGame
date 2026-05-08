@@ -31,7 +31,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.fishingidlegame.data.User
 import com.example.fishingidlegame.data.UserRepository
+import kotlinx.coroutines.launch
 
 private val BgDark = Color(0xFF050B14)
 private val CardBg = Color(0xFF0D1B2A)
@@ -42,7 +44,7 @@ private val FieldBg = Color(0xFF0A1628)
 private val ErrorColor = Color(0xFFFF6B6B)
 
 @Composable
-fun LoginScreen(userRepository: UserRepository, onLoginSuccess: (email: String, username: String) -> Unit) {
+fun LoginScreen(userRepository: UserRepository, onLoginSuccess: (User) -> Unit) {
     var mode by remember { mutableStateOf(Mode.LOGIN) }
     val infiniteTransition = rememberInfiniteTransition(label = "glow")
     val glowAlpha by infiniteTransition.animateFloat(
@@ -70,7 +72,7 @@ fun LoginScreen(userRepository: UserRepository, onLoginSuccess: (email: String, 
             Spacer(Modifier.height(48.dp))
 
             Text(
-                "OCEAN\nTITANS",
+                "MYTHIC\nWATERS",
                 fontSize = 52.sp, lineHeight = 48.sp,
                 fontWeight = FontWeight.Black, color = Color.White,
                 textAlign = TextAlign.Center,
@@ -81,7 +83,7 @@ fun LoginScreen(userRepository: UserRepository, onLoginSuccess: (email: String, 
 
             Surface(color = Gold, shape = RoundedCornerShape(4.dp)) {
                 Text(
-                    "FISHING IDLE",
+                    "IDLE LEGENDS",
                     fontSize = 10.sp, color = BgDark,
                     fontWeight = FontWeight.Black,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
@@ -111,8 +113,8 @@ fun LoginScreen(userRepository: UserRepository, onLoginSuccess: (email: String, 
                 label = "formTransition"
             ) { currentMode ->
                 when (currentMode) {
-                    Mode.LOGIN -> LoginForm(userRepository) { email, username -> onLoginSuccess(email, username) }
-                    Mode.REGISTER -> RegisterForm(userRepository) { email, username -> onLoginSuccess(email, username) }
+                    Mode.LOGIN -> LoginForm(userRepository) { user -> onLoginSuccess(user) }
+                    Mode.REGISTER -> RegisterForm(userRepository) { user -> onLoginSuccess(user) }
                 }
             }
 
@@ -131,7 +133,7 @@ fun LoginScreen(userRepository: UserRepository, onLoginSuccess: (email: String, 
 }
 
 @Composable
-private fun LoginForm(userRepository: UserRepository, onLoginSuccess: (email: String, username: String) -> Unit) {
+private fun LoginForm(userRepository: UserRepository, onLoginSuccess: (User) -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -163,16 +165,19 @@ private fun LoginForm(userRepository: UserRepository, onLoginSuccess: (email: St
 
         Spacer(Modifier.height(4.dp))
 
+        val scope = rememberCoroutineScope()
         Button(
             onClick = {
                 error = validateLogin(email, password)
                 if (error == null) {
                     loading = true
-                    val result = userRepository.login(email, password)
-                    result.fold(
-                        onSuccess = { user -> onLoginSuccess(user.email, user.username) },
-                        onFailure = { e -> error = e.message; loading = false }
-                    )
+                    scope.launch {
+                        val result = userRepository.login(email, password)
+                        result.fold(
+                            onSuccess = { user -> onLoginSuccess(user) },
+                            onFailure = { e -> error = e.message; loading = false }
+                        )
+                    }
                 }
             },
             enabled = !loading,
@@ -190,7 +195,7 @@ private fun LoginForm(userRepository: UserRepository, onLoginSuccess: (email: St
 }
 
 @Composable
-private fun RegisterForm(userRepository: UserRepository, onLoginSuccess: (email: String, username: String) -> Unit) {
+private fun RegisterForm(userRepository: UserRepository, onLoginSuccess: (User) -> Unit) {
     var email by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -238,16 +243,19 @@ private fun RegisterForm(userRepository: UserRepository, onLoginSuccess: (email:
 
         Spacer(Modifier.height(4.dp))
 
+        val scope = rememberCoroutineScope()
         Button(
             onClick = {
                 error = validateRegister(email, username, password, confirmPassword)
                 if (error == null) {
                     loading = true
-                    val result = userRepository.register(email, username, password)
-                    result.fold(
-                        onSuccess = { user -> onLoginSuccess(user.email, user.username) },
-                        onFailure = { e -> error = e.message; loading = false }
-                    )
+                    scope.launch {
+                        val result = userRepository.register(email, username, password)
+                        result.fold(
+                            onSuccess = { user -> onLoginSuccess(user) },
+                            onFailure = { e -> error = e.message; loading = false }
+                        )
+                    }
                 }
             },
             enabled = !loading,

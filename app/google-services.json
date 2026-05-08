@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "244870652008",
+    "project_id": "idlefishing-94410",
+    "storage_bucket": "idlefishing-94410.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:244870652008:android:3e854e3ceb3e64cd371bdd",
+        "android_client_info": {
+          "package_name": "com.TFGDAM2.appname"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC0KT3wDVexyybWJDDSa8LHT7sLH247zbE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
