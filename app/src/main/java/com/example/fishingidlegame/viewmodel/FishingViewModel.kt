@@ -15,6 +15,7 @@ import kotlin.math.sqrt
 import kotlin.math.roundToInt
 import kotlin.math.pow
 import java.util.*
+import com.example.fishingidlegame.data.FirebaseManager
 
 class FishingViewModel(private val repository: GameRepository) : ViewModel() {
 
@@ -39,6 +40,8 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
     private val worldWidth = 1080f
     private var tensionValue = 50f
     private var bossStamina = 100f
+
+    private val firebaseManager = FirebaseManager()
 
     init {
         loadUserData()
@@ -315,6 +318,18 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
                                 speciesCounts = newCounts,
                                 maxWeights = newMaxWeights
                             ) }
+                            firebaseManager.guardarPuntuacion(
+                                repository.getCurrentUser(),
+                                repository.getCurrentUsername(),
+                                _state.value.score
+                            )
+
+                            firebaseManager.guardarPesoPez(
+                                repository.getCurrentUser(),
+                                repository.getCurrentUsername(),
+                                fish.type.name,
+                                fish.kg
+                            )
                             
                             showToast("${if(fish.isRare) "✨" else "🐟"} ${fish.type.name} (${fish.tier.label}) ${String.format("%.1f", fish.kg)}kg +${earned}")
                             return@map fish.copy(isCaught = true)

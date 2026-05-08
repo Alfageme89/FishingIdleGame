@@ -4,9 +4,11 @@ import android.content.Context
 import android.content.SharedPreferences
 import java.security.MessageDigest
 
+
 data class User(val email: String, val username: String)
 
 class UserRepository(context: Context) {
+    private val firebaseRepository = FirebaseRepository()
     private val prefs: SharedPreferences =
         context.getSharedPreferences("fishing_users", Context.MODE_PRIVATE)
 
@@ -36,6 +38,12 @@ class UserRepository(context: Context) {
             apply()
         }
         saveActiveUser(key)
+
+        firebaseRepository.saveUser(
+            key,
+            trimmedUsername
+        )
+
         return Result.success(User(key, trimmedUsername))
     }
 
