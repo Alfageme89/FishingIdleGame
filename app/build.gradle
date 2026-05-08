@@ -3,7 +3,11 @@ plugins {
     id 'org.jetbrains.kotlin.android'
     id 'com.google.gms.google-services'
 }
-
+classpath("com.google.gms:google-services:4.4.2")
+plugins {
+    id("com.google.gms.google-services")
+}
+implementation("com.google.firebase:firebase-firestore-ktx")
 android {
     namespace 'com.example.fishingidlegame'
     compileSdk 34
