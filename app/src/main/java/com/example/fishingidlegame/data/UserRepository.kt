@@ -9,6 +9,7 @@ data class User(val email: String, val username: String)
 
 class UserRepository(context: Context) {
     private val firebaseRepository = FirebaseRepository()
+    private val firebaseManager = FirebaseManager()
     private val prefs: SharedPreferences =
         context.getSharedPreferences("fishing_users", Context.MODE_PRIVATE)
 
@@ -39,10 +40,8 @@ class UserRepository(context: Context) {
         }
         saveActiveUser(key)
 
-        firebaseRepository.saveUser(
-            key,
-            trimmedUsername
-        )
+        firebaseRepository.saveUser(key, trimmedUsername)
+        firebaseManager.inicializarUsuario(key, trimmedUsername)
 
         return Result.success(User(key, trimmedUsername))
     }

@@ -67,6 +67,19 @@ data class Fish(
     var isRare: Boolean = false
 )
 
+data class RankingJugador(
+    val username: String = "",
+    val puntuacion: Long = 0L,
+    val prestigeLevel: Int = 0,
+    val prestigeMultiplier: Float = 1.0f
+)
+
+data class RankingPez(
+    val username: String = "",
+    val pez: String = "",
+    val pesoMaximo: Float = 0f
+)
+
 data class GameState(
     val score: Long = 0,
     val totalFishCaught: Int = 0,

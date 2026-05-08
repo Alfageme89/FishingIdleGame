@@ -9,7 +9,6 @@ import com.example.fishingidlegame.data.FirebaseManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlin.math.*
-import java.util.*
 
 class FishingViewModel(private val repository: GameRepository) : ViewModel() {
 
@@ -26,12 +25,21 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
     // ---------------- FIREBASE ----------------
     private val firebaseManager = FirebaseManager()
 
-    private var pendingScore = 0L
     private val pendingFishWrites = mutableListOf<Pair<String, Float>>()
-    private var pendingScoreWrite = false
+    private var pendingSync = false
 
     private var firebaseJob: Job? = null
     private var lastFirebaseFlush = 0L
+
+    // ---------------- RANKING ----------------
+    private val _rankingJugadores = MutableStateFlow<List<RankingJugador>>(emptyList())
+    val rankingJugadores = _rankingJugadores.asStateFlow()
+
+    private val _rankingPeces = MutableStateFlow<List<RankingPez>>(emptyList())
+    val rankingPeces = _rankingPeces.asStateFlow()
+
+    private val _rankingLoading = MutableStateFlow(false)
+    val rankingLoading = _rankingLoading.asStateFlow()
 
     // ---------------- GAME VALUES ----------------
     private val surfaceY = 400f
@@ -48,6 +56,7 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
     init {
         loadUserData()
         startGameLoop()
+        startPeriodicSave()
     }
 
     // ---------------- LOAD ----------------
@@ -60,7 +69,7 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         }
     }
 
-    // ---------------- FIREBASE SYNC (ÚNICO SISTEMA) ----------------
+    // ---------------- FIREBASE SYNC ----------------
     private fun scheduleFirebaseSync(force: Boolean = false) {
         val now = System.currentTimeMillis()
 
@@ -73,19 +82,21 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
 
             val user = repository.getCurrentUser()
             val username = repository.getCurrentUsername()
+            val currentState = _state.value
 
-            val score = pendingScore
             val fishBatch = pendingFishWrites.toList()
-
-            pendingScore = 0L
             pendingFishWrites.clear()
+            pendingSync = false
 
-            if (score > 0) {
-                firebaseManager.guardarPuntuacion(user, username, score)
-            }
-
-            fishBatch.forEach { (type, kg) ->
-                firebaseManager.guardarPesoPez(user, username, type, kg)
+            runCatching {
+                firebaseManager.guardarPuntuacion(
+                    user, username, currentState.score,
+                    currentState.prestigeLevel, currentState.prestigeMultiplier
+                )
+                firebaseManager.guardarProgresoCompleto(user, username, currentState)
+                fishBatch.forEach { (type, kg) ->
+                    firebaseManager.guardarPesoPez(user, username, type, kg)
+                }
             }
 
             lastFirebaseFlush = System.currentTimeMillis()
@@ -101,8 +112,7 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
             )
         }
 
-        pendingScore += amount
-        pendingScoreWrite = true
+        pendingSync = true
         scheduleFirebaseSync()
     }
 
@@ -131,6 +141,13 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
                         val newCounts = current.speciesCounts.toMutableMap().apply {
                             put(fish.type.name, (get(fish.type.name) ?: 0) + 1)
                         }
+                        val prevMaxKg = current.maxWeights[fish.type.name] ?: 0f
+                        val isNewMax = fish.kg > prevMaxKg
+                        val newMaxWeights = if (isNewMax) {
+                            current.maxWeights.toMutableMap().apply { put(fish.type.name, fish.kg) }
+                        } else {
+                            current.maxWeights
+                        }
 
                         _state.update {
                             it.copy(
@@ -139,13 +156,15 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
                                 totalLifetimeScore = it.totalLifetimeScore + earned,
                                 totalFishCaught = it.totalFishCaught + 1,
                                 caughtSpecies = newSpecies,
-                                speciesCounts = newCounts
+                                speciesCounts = newCounts,
+                                maxWeights = newMaxWeights
                             )
                         }
 
-                        // QUEUE FIREBASE (CORRECTO)
-                        pendingScore += earned
-                        pendingFishWrites.add(fish.type.name to fish.kg)
+                        if (isNewMax) {
+                            pendingFishWrites.add(fish.type.name to fish.kg)
+                        }
+                        pendingSync = true
                         scheduleFirebaseSync()
 
                         return@map fish.copy(isCaught = true)
@@ -212,10 +231,41 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         baitPower = get("bait", 1f)
     }
 
+    // ---------------- RANKING LOAD ----------------
+    fun cargarRankingJugadores() {
+        viewModelScope.launch {
+            _rankingLoading.value = true
+            _rankingJugadores.value = firebaseManager.obtenerRankingPuntuaciones()
+            _rankingLoading.value = false
+        }
+    }
+
+    fun cargarRankingPorPez(fishName: String) {
+        viewModelScope.launch {
+            _rankingLoading.value = true
+            _rankingPeces.value = firebaseManager.obtenerRankingPorPez(fishName)
+            _rankingLoading.value = false
+        }
+    }
+
     // ---------------- SAVE ----------------
-    private fun saveUserData() {
+    fun saveUserData() {
         viewModelScope.launch {
             repository.saveProgress(_state.value)
+        }
+        scheduleFirebaseSync(force = true)
+    }
+
+    // ---------------- PERIODIC SAVE ----------------
+    private fun startPeriodicSave() {
+        viewModelScope.launch {
+            while (true) {
+                delay(30_000)
+                repository.saveProgress(_state.value)
+                if (pendingSync) {
+                    scheduleFirebaseSync(force = true)
+                }
+            }
         }
     }
 }

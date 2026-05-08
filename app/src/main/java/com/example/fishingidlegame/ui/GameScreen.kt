@@ -123,7 +123,7 @@ fun GameScreen(viewModel: FishingViewModel, onLogout: () -> Unit = {}) {
         if (state.gamePhase == "BOSS_FIGHT") BossFightUI(state, state.currentBiomeIndex)
 
         // 5. Ventanas Modales
-        if (state.showCollection) CollectionOverlay(state, onFishClick = { selectedFishForDetail = it }, onClose = { viewModel.toggleCollection(false) })
+        if (state.showCollection) CollectionOverlay(state, viewModel, onFishClick = { selectedFishForDetail = it }, onClose = { viewModel.toggleCollection(false) })
         if (state.showMapSelector) MapSelectorOverlay(state, onSelect = { viewModel.changeBiome(it) }, onClose = { viewModel.toggleMapSelector(false) })
         if (state.showPrestigeConfirm) PrestigeConfirmOverlay(state, onConfirm = { viewModel.confirmPrestige() }, onCancel = { viewModel.closePrestigeConfirm() })
         if (state.showShop) ShopOverlay(state, onClose = { viewModel.toggleShop(false) }, onBuy = { type, cost -> viewModel.buyConsumable(type, cost) })
@@ -484,24 +484,321 @@ fun GameTopHUD(state: GameState, viewModel: FishingViewModel) {
 }
 
 @Composable
-fun CollectionOverlay(state: GameState, onFishClick: (FishType) -> Unit, onClose: () -> Unit) {
+fun CollectionOverlay(
+    state: GameState,
+    viewModel: FishingViewModel,
+    onFishClick: (FishType) -> Unit,
+    onClose: () -> Unit
+) {
+    var showRanking by remember { mutableStateOf(false) }
+
+    if (showRanking) {
+        RankingOverlay(viewModel = viewModel, onClose = { showRanking = false })
+        return
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.9f)).clickable { onClose() }, contentAlignment = Alignment.Center) {
-        Card(modifier = Modifier.fillMaxWidth(0.9f).fillMaxHeight(0.85f).clickable(enabled = false) {}, colors = CardDefaults.cardColors(containerColor = Color(0xFF0F3460)), shape = RoundedCornerShape(32.dp)) {
+        Card(
+            modifier = Modifier.fillMaxWidth(0.9f).fillMaxHeight(0.85f).clickable(enabled = false) {},
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F3460)),
+            shape = RoundedCornerShape(32.dp)
+        ) {
             Column(modifier = Modifier.padding(24.dp)) {
-                Text("ENCICLOPEDIA", color = Color.White, fontWeight = FontWeight.Black, fontSize = 24.sp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("ENCICLOPEDIA", color = Color.White, fontWeight = FontWeight.Black, fontSize = 24.sp)
+                    Button(
+                        onClick = { showRanking = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD700)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Leaderboard, null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("RANKING", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 11.sp)
+                    }
+                }
                 Spacer(modifier = Modifier.height(16.dp))
-                LazyVerticalGrid(columns = GridCells.Fixed(3), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
                     items(GameConfig.fishTypes.values.toList()) { type ->
                         val caught = state.caughtSpecies.contains(type.name)
-                        Box(modifier = Modifier.aspectRatio(1f).clip(RoundedCornerShape(16.dp)).background(if(caught) Color(0xFF16213E) else Color.Black.copy(0.3f)).clickable(enabled = caught) { onFishClick(type) }, contentAlignment = Alignment.Center) {
-                            if(caught) {
+                        Box(
+                            modifier = Modifier.aspectRatio(1f).clip(RoundedCornerShape(16.dp))
+                                .background(if (caught) Color(0xFF16213E) else Color.Black.copy(0.3f))
+                                .clickable(enabled = caught) { onFishClick(type) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (caught) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Box(modifier = Modifier.size(40.dp).background(type.color, CircleShape))
                                     Text(type.name, color = Color.White, fontSize = 10.sp, textAlign = TextAlign.Center)
                                 }
-                            } else Text("?", color = Color.White.copy(0.1f), fontSize = 32.sp)
+                            } else {
+                                Text("?", color = Color.White.copy(0.1f), fontSize = 32.sp)
+                            }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RankingOverlay(viewModel: FishingViewModel, onClose: () -> Unit) {
+    val rankingJugadores by viewModel.rankingJugadores.collectAsState()
+    val rankingPeces by viewModel.rankingPeces.collectAsState()
+    val rankingLoading by viewModel.rankingLoading.collectAsState()
+
+    var selectedTab by remember { mutableStateOf(0) }
+    var fishSeleccionado by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) { viewModel.cargarRankingJugadores() }
+    LaunchedEffect(fishSeleccionado) {
+        fishSeleccionado?.let { viewModel.cargarRankingPorPez(it) }
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.95f)).clickable { onClose() },
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(0.92f).fillMaxHeight(0.88f).clickable(enabled = false) {},
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1628)),
+            shape = RoundedCornerShape(32.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("RANKING GLOBAL", color = Color(0xFFFFD700), fontWeight = FontWeight.Black, fontSize = 22.sp)
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Default.Close, null, tint = Color.White)
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // Tabs
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = Color(0xFF16213E),
+                    contentColor = Color.White
+                ) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = {
+                            selectedTab = 0
+                            viewModel.cargarRankingJugadores()
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Default.EmojiEvents, null, modifier = Modifier.size(16.dp))
+                            Text("JUGADORES", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Default.SetMeal, null, modifier = Modifier.size(16.dp))
+                            Text("PECES", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                if (rankingLoading) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color(0xFFFFD700))
+                    }
+                } else when (selectedTab) {
+                    0 -> RankingJugadoresTab(rankingJugadores)
+                    1 -> RankingPecesTab(
+                        rankingPeces = rankingPeces,
+                        fishSeleccionado = fishSeleccionado,
+                        onFishSelect = { fishSeleccionado = it }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ColumnScope.RankingJugadoresTab(ranking: List<RankingJugador>) {
+    if (ranking.isEmpty()) {
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text("Sin datos aún", color = Color.White.copy(0.4f), fontSize = 14.sp)
+        }
+        return
+    }
+    androidx.compose.foundation.lazy.LazyColumn(
+        modifier = Modifier.weight(1f),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        itemsIndexed(ranking) { index, entry ->
+            val medalColor = when (index) {
+                0 -> Color(0xFFFFD700)
+                1 -> Color(0xFFC0C0C0)
+                2 -> Color(0xFFCD7F32)
+                else -> Color.White.copy(0.6f)
+            }
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (index < 3) Color(0xFF1A2B3C) else Color(0xFF0D1621)
+                ),
+                shape = RoundedCornerShape(12.dp),
+                border = if (index == 0) BorderStroke(1.dp, Color(0xFFFFD700).copy(0.5f)) else null
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "#${index + 1}",
+                        color = medalColor,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.sp,
+                        modifier = Modifier.width(36.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(entry.username, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        if (entry.prestigeLevel > 0) {
+                            Text(
+                                "Prestigio ${entry.prestigeLevel} · x${String.format("%.2f", entry.prestigeMultiplier)}",
+                                color = Color.Magenta,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Text(
+                        formatPoints(entry.puntuacion),
+                        color = medalColor,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 15.sp
+                    )
+                    Text(" pts", color = Color.White.copy(0.5f), fontSize = 11.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ColumnScope.RankingPecesTab(
+    rankingPeces: List<RankingPez>,
+    fishSeleccionado: String?,
+    onFishSelect: (String) -> Unit
+) {
+    val fishTypes = GameConfig.fishTypes.values.toList()
+
+    // Selector de pez
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        itemsIndexed(fishTypes) { _, type ->
+            val selected = fishSeleccionado == type.name
+            Surface(
+                modifier = Modifier.clickable { onFishSelect(type.name) },
+                shape = RoundedCornerShape(20.dp),
+                color = if (selected) type.color else Color(0xFF16213E),
+                border = if (selected) BorderStroke(2.dp, Color.White) else BorderStroke(1.dp, Color.White.copy(0.15f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(modifier = Modifier.size(20.dp).background(type.color, CircleShape))
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        type.name,
+                        color = if (selected) Color.Black else Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+
+    Spacer(Modifier.height(12.dp))
+
+    if (fishSeleccionado == null) {
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text("Selecciona un pez para ver su ranking", color = Color.White.copy(0.4f), fontSize = 13.sp, textAlign = TextAlign.Center)
+        }
+        return
+    }
+
+    if (rankingPeces.isEmpty()) {
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Sin registros para", color = Color.White.copy(0.4f), fontSize = 13.sp)
+                Text(fishSeleccionado, color = Color.White.copy(0.6f), fontWeight = FontWeight.Bold)
+            }
+        }
+        return
+    }
+
+    androidx.compose.foundation.lazy.LazyColumn(
+        modifier = Modifier.weight(1f),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        itemsIndexed(rankingPeces) { index, entry ->
+            val medalColor = when (index) {
+                0 -> Color(0xFFFFD700)
+                1 -> Color(0xFFC0C0C0)
+                2 -> Color(0xFFCD7F32)
+                else -> Color.White.copy(0.6f)
+            }
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1621)),
+                shape = RoundedCornerShape(12.dp),
+                border = if (index == 0) BorderStroke(1.dp, Color(0xFFFFD700).copy(0.5f)) else null
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "#${index + 1}",
+                        color = medalColor,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.sp,
+                        modifier = Modifier.width(36.dp)
+                    )
+                    Text(entry.username, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Text(
+                        "${String.format("%.2f", entry.pesoMaximo)} kg",
+                        color = medalColor,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 15.sp
+                    )
                 }
             }
         }
