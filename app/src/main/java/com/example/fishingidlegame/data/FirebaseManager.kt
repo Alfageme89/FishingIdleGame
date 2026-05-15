@@ -157,6 +157,8 @@ class FirebaseManager {
                         prestigeMultiplier = (doc.getDouble("prestigeMultiplier") ?: 1.0).toFloat()
                     )
                 }
+                .sortedWith(compareByDescending<RankingJugador> { it.prestigeLevel }.thenByDescending { it.puntuacion })
+                .take(20)
         }.getOrElse { emptyList() }
     }
 

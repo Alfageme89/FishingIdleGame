@@ -56,7 +56,7 @@ object GameConfig {
     val upgrades = mapOf(
         "depth" to UpgradeConfig("depth", "Profundidad", "🌊", "m",
             listOf(100, 600, 3000, 12000, 60000, 250000, 1200000),
-            listOf(80f, 130f, 250f, 600f, 1200f, 2500f, 5000f, 10000f)),
+            listOf(80f, 130f, 250f, 400f, 600f, 750f, 1000f, 1600f)),
         "weight" to UpgradeConfig("weight", "Capacidad", "⚖️", "kg",
             listOf(80, 500, 2500, 12000, 60000, 300000, 1500000, 8000000),
             listOf(30f, 80f, 200f, 500f, 1500f, 4000f, 12000f, 40000f, 120000f)),

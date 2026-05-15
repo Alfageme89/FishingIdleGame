@@ -17,7 +17,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
@@ -46,7 +48,15 @@ fun GameScreen(viewModel: FishingViewModel, onLogout: () -> Unit = {}) {
 
     var selectedFishForDetail by remember { mutableStateOf<FishType?>(null) }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0E14))) {
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0E14)).then(
+        if (state.sfxEnabled) Modifier
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                drawRect(color = Color.White, blendMode = androidx.compose.ui.graphics.BlendMode.Difference)
+            }
+        else Modifier
+    )) {
         // 1. Capa de Juego (Mundo)
         Box(
             modifier = Modifier.fillMaxSize()
@@ -121,6 +131,7 @@ fun GameScreen(viewModel: FishingViewModel, onLogout: () -> Unit = {}) {
         // 4. Fases Especiales del Boss
         if (state.gamePhase == "BOSS_WARNING") BossWarningOverlay(state, state.currentBiomeIndex)
         if (state.gamePhase == "BOSS_FIGHT") BossFightUI(state, state.currentBiomeIndex)
+        if (state.gamePhase == "BOSS_FAIL") BossFailOverlay(state.currentBiomeIndex) { viewModel.dismissBossFail() }
 
         // 5. Ventanas Modales
         if (state.showCollection) CollectionOverlay(state, viewModel, onFishClick = { selectedFishForDetail = it }, onClose = { viewModel.toggleCollection(false) })
@@ -266,8 +277,7 @@ fun SettingsOverlay(state: GameState, viewModel: FishingViewModel, onLogout: () 
                 Text("CONFIGURACIÓN", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
                 Spacer(modifier = Modifier.height(32.dp))
 
-                SettingsToggle("Música", state.musicEnabled) { viewModel.toggleMusic() }
-                SettingsToggle("Efectos SFX", state.sfxEnabled) { viewModel.toggleSFX() }
+                SettingsToggle("Modo Invertido", state.sfxEnabled) { viewModel.toggleSFX() }
 
                 Spacer(modifier = Modifier.height(40.dp))
 
@@ -356,6 +366,53 @@ fun BossWarningOverlay(state: GameState, biomeIndex: Int) {
 }
 
 @Composable
+fun BossFailOverlay(biomeIndex: Int, onDismiss: () -> Unit) {
+    val bossImageRes = when (biomeIndex % 3) {
+        0 -> R.drawable.boss1
+        1 -> R.drawable.boss2
+        else -> R.drawable.boss3
+    }
+    Box(
+        modifier = Modifier.fillMaxSize().clickable { onDismiss() },
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = bossImageRes),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            alpha = 0.5f
+        )
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.7f)))
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "HAS FRACASADO",
+                color = Color.Red,
+                fontSize = 52.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "El guardián te ha vencido",
+                color = Color.White.copy(0.7f),
+                fontSize = 18.sp,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(48.dp))
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.padding(horizontal = 32.dp)
+            ) {
+                Text("VOLVER AL INICIO", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+            }
+        }
+    }
+}
+
+@Composable
 fun BossFightUI(state: GameState, biomeIndex: Int) {
     val bossImageRes = when (biomeIndex % 3) {
         0 -> R.drawable.boss1
@@ -399,6 +456,27 @@ fun BossFightUI(state: GameState, biomeIndex: Int) {
                 )
             }
             Text("¡MANTENTE EN EL ÁREA VERDE!", color = Color.White.copy(0.8f), fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
+
+            Spacer(modifier = Modifier.height(16.dp))
+            val bossStabilityLevel = state.upgLevels["boss"] ?: 0
+            val bossStabilityVals = GameConfig.upgrades["boss"]?.values ?: listOf(1f)
+            val bossStabilityVal = if (bossStabilityLevel < bossStabilityVals.size) bossStabilityVals[bossStabilityLevel] else 1f
+            val maxMisses = (5 + ((bossStabilityVal - 1f) / (3.2f - 1f) * 11f)).toInt().coerceIn(5, 16)
+            val missesLeft = (maxMisses - state.bossMissCount).coerceAtLeast(0)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                repeat(maxMisses) { i ->
+                    Box(
+                        modifier = Modifier
+                            .size(14.dp)
+                            .padding(2.dp)
+                            .background(
+                                if (i < missesLeft) Color.Red else Color.White.copy(0.15f),
+                                CircleShape
+                            )
+                    )
+                }
+            }
+            Text("Fallos restantes: $missesLeft/$maxMisses", color = Color.White.copy(0.6f), fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }

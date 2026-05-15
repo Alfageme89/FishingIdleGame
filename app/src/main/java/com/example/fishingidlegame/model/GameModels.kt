@@ -135,5 +135,7 @@ data class GameState(
     val sfxEnabled: Boolean = true,
     
     val activePowerUps: Map<PowerUpType, Long> = emptyMap(),
-    val shopPriceMultipliers: Map<String, Float> = emptyMap()
+    val shopPriceMultipliers: Map<String, Float> = emptyMap(),
+
+    val bossMissCount: Int = 0
 )

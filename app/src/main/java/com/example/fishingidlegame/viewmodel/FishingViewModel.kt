@@ -211,6 +211,8 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         val newCamY = state.camY + (state.camYTarget - state.camY) * 0.15f
 
         // Boss phases: update and return early (hook/fish don't move)
+        if (state.gamePhase == "BOSS_FAIL") return
+
         when (state.gamePhase) {
             "BOSS_WARNING" -> {
                 bossWarningFrames++
@@ -227,6 +229,7 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
                 if (state.bossHealth <= 0f) {
                     val biome = GameConfig.biomes[state.currentBiomeIndex]
                     val reward = GameConfig.bosses[biome.bossName]?.reward ?: 500L
+                    val nextBiome = minOf(state.currentBiomeIndex + 1, GameConfig.biomes.size - 1)
                     _state.update { s ->
                         s.copy(
                             camY = newCamY,
@@ -234,10 +237,13 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
                             totalLifetimeScore = s.totalLifetimeScore + reward,
                             gamePhase = "REELING",
                             bossActive = false,
+                            bossMissCount = 0,
+                            currentBiomeIndex = nextBiome,
                             maxBiomeReached = minOf(s.maxBiomeReached + 1, GameConfig.biomes.size - 1),
                             toastMessage = "¡Jefe derrotado! +${reward} pts"
                         )
                     }
+                    updateActiveStats()
                     viewModelScope.launch { delay(2500); _state.update { it.copy(toastMessage = null) } }
                     pendingSync = true
                     scheduleFirebaseSync()
@@ -311,6 +317,7 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
                     newCurrentKg = 0f
                     newCamYTarget = 0f
                     bossTriggeredForCurrentDive = false
+                    spawnWorldElements()
                 }
             }
         }
@@ -332,10 +339,8 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         // Viewport-based fish: cull off-screen, move alive, spawn in visible zone
         val viewBottom = newCamY + 2200f
         val cullAbove = newCamY - 300f
-        val cullBelow = viewBottom + 600f   // remove fish that fell far below viewport
-        // Spawn zone: below hook position so fish appear ahead, not behind
-        val spawnTop = maxOf(surfaceY + 20f, newHookY + 200f)
-        val spawnBottom = minOf(spawnTop + 1400f, viewBottom)
+        // Durante REELING eliminar peces que queden por debajo del hook (ya pasaron)
+        val cullBelow = if (newGamePhase == "REELING") newHookY + 200f else viewBottom + 600f
 
         _fishList.update { list ->
             list.mapNotNull { fish ->
@@ -358,9 +363,21 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         }
 
         val aliveCount = _fishList.value.count { !it.isCaught }
-        if (aliveCount < 12 && spawnTop < spawnBottom) {
-            val toSpawn = 25 - aliveCount
-            _fishList.update { list -> list + List(toSpawn) { createRandomFishInZone(spawnTop, spawnBottom) } }
+        if (newGamePhase == "REELING") {
+            // Spawnear justo encima del sedal para que aparezcan al subir
+            val reelingSpawnBottom = (newHookY - 50f).coerceAtLeast(surfaceY + 20f)
+            val reelingSpawnTop = (reelingSpawnBottom - 1000f).coerceAtLeast(surfaceY + 20f)
+            if (aliveCount < 20 && reelingSpawnTop < reelingSpawnBottom) {
+                val toSpawn = 20 - aliveCount
+                _fishList.update { list -> list + List(toSpawn) { createRandomFishInZone(reelingSpawnTop, reelingSpawnBottom) } }
+            }
+        } else {
+            val spawnTop = maxOf(surfaceY + 20f, newHookY + 200f)
+            val spawnBottom = minOf(spawnTop + 1400f, viewBottom)
+            if (aliveCount < 12 && spawnTop < spawnBottom) {
+                val toSpawn = 25 - aliveCount
+                _fishList.update { list -> list + List(toSpawn) { createRandomFishInZone(spawnTop, spawnBottom) } }
+            }
         }
 
         checkCollisions()
@@ -466,6 +483,20 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
             if (kotlin.math.abs(tension - safeZone) < 15f) {
                 val damage = 10f * bossStability * baitPower
                 _state.update { it.copy(bossHealth = (it.bossHealth - damage).coerceAtLeast(0f)) }
+            } else {
+                // Click fuera de la zona verde: contar fallo
+                val maxMisses = (5 + ((bossStability - 1f) / (3.2f - 1f) * 11f)).roundToInt()
+                val newMissCount = state.bossMissCount + 1
+                if (newMissCount >= maxMisses) {
+                    _state.update { it.copy(
+                        gamePhase = "BOSS_FAIL",
+                        bossActive = false,
+                        bossMissCount = 0,
+                        toastMessage = null
+                    ) }
+                } else {
+                    _state.update { it.copy(bossMissCount = newMissCount) }
+                }
             }
         }
     }
@@ -544,6 +575,8 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
             )
         }
         updateActiveStats()
+        _fishList.value = emptyList()
+        spawnWorldElements()
         pendingSync = true
         scheduleFirebaseSync(force = true)
     }
@@ -594,11 +627,19 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
                 caughtSpecies = emptySet(),
                 speciesCounts = emptyMap(),
                 maxWeights = emptyMap(),
-                gamePhase = "FISHING",
+                currentBiomeIndex = 0,
+                maxBiomeReached = 0,
+                gamePhase = "MENU",
+                hookY = 0f,
+                camY = 0f,
+                camYTarget = 0f,
                 showResetConfirm = false,
                 shopPriceMultipliers = emptyMap()
             )
         }
+        updateActiveStats()
+        _fishList.value = emptyList()
+        spawnWorldElements()
         pendingSync = true
         scheduleFirebaseSync(force = true)
     }
@@ -607,7 +648,20 @@ class FishingViewModel(private val repository: GameRepository) : ViewModel() {
         _state.update { it.copy(showResetConfirm = false) }
     }
 
-    fun launchHook(targetY: Float) {
+    fun dismissBossFail() {
+        bossTriggeredForCurrentDive = false
+        _state.update { it.copy(
+            gamePhase = "MENU",
+            bossActive = false,
+            bossMissCount = 0,
+            currentKg = 0f,
+            hookY = 0f,
+            camY = 0f,
+            camYTarget = 0f
+        ) }
+    }
+
+    fun launchHook(@Suppress("UNUSED_PARAMETER") targetY: Float) {
         val state = _state.value
         if (state.gamePhase == "MENU" || state.gamePhase == "FISHING") {
             bossTriggeredForCurrentDive = false
