@@ -14,7 +14,7 @@ object GameConfig {
     const val M2PX_BASE = 25f 
 
     val biomes = listOf(
-        Biome("Lago Sereno",    "Aguas tranquilas ideales para principiantes.",             Color(0xFF1e5fa8), Color(0xFF1898a8), Color(0xFF061220), 0f,    listOf("Trucha", "Carpa", "Lucio"),                          "Kraken"),
+        Biome("Lago Sereno 3",    "Aguas tranquilas ideales para principiantes.",             Color(0xFF1e5fa8), Color(0xFF1898a8), Color(0xFF061220), 0f,    listOf("Trucha", "Carpa", "Lucio"),                          "Kraken"),
         Biome("Arrecife Coral", "Un festival de colores y biodiversidad marina.",           Color(0xFF5ba8d8), Color(0xFF4ecdc4), Color(0xFF123456), 100f,  listOf("Pez Payaso", "Salmón", "Piraña", "Pez Globo"),        "Cangrejo"),
         Biome("Océano Profundo","Donde la luz empieza a escasear y los gigantes habitan.", Color(0xFF0D1B2A), Color(0xFF1B263B), Color(0xFF010406), 300f,  listOf("Tiburón", "Pez Espada", "Rape", "Manta Raya"),         "Cangrejo Mecánico"),
         Biome("Abismo Abisal",  "Presiones extremas y criaturas de pesadilla.",            Color(0xFF000000), Color(0xFF010406), Color(0xFF000000), 800f,  listOf("Calamar Gig.", "Dunkleosteus", "Anguila Eléctrica"),   "Verdadero Kraken"),
